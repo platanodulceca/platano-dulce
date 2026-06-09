@@ -8,6 +8,17 @@ export default function Dashboard() {
   const [topDishes, setTopDishes] = useState([])
   const [loading, setLoading] = useState(true)
 
+  const EMPTY_SUMMARY = {
+    today: {
+      date: new Date().toISOString().split('T')[0],
+      total_bs: 0, total_usd: 0, total_cost: 0,
+      total_items: 0, avg_ticket_bs: 0, margin_pct: 0,
+      register_status: 'sin_registro', exchange_rate: 0,
+    },
+    pending_accounts: [],
+    pending_amount_bs: 0,
+  }
+
   const load = useCallback(async () => {
     try {
       const [sRes, dRes] = await Promise.all([
@@ -16,14 +27,15 @@ export default function Dashboard() {
       ])
       setSummary(sRes.data)
       setTopDishes(dRes.data.dishes || [])
-    } catch {}
+    } catch {
+      setSummary(EMPTY_SUMMARY)
+    }
     setLoading(false)
   }, [])
 
   useEffect(() => { load() }, [load])
 
   if (loading) return <div className="loading-screen"><div className="spinner" /></div>
-  if (!summary) return <div className="loading-screen"><p>Error cargando datos</p></div>
 
   const { today, pending_accounts, pending_amount_bs } = summary
 

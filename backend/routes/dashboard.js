@@ -19,11 +19,11 @@ router.get('/summary', async (req, res) => {
     .select('id, amount_bs, client_name')
     .eq('status', 'pendiente')
 
-  const { data: alertProducts } = await supabase
+  const { data: allProducts } = await supabase
     .from('products')
     .select('id, name, current_stock, minimum_stock, unit')
     .eq('active', true)
-    .lte('current_stock', supabase.raw('minimum_stock'))
+  const alertProducts = allProducts?.filter(p => Number(p.current_stock) <= Number(p.minimum_stock)) || []
 
   let totalBs = 0
   let totalUsd = 0
