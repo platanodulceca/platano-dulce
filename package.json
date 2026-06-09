@@ -12,7 +12,6 @@
     "start": "node backend/server.js",
     "dev:backend": "npm run dev --prefix backend",
     "dev:frontend": "npm run dev --prefix frontend",
-    "seed": "node backend/seed.js",
-    "postinstall": "npm run build"
+    "seed": "node backend/seed.js"
   }
 }
