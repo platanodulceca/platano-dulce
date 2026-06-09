@@ -68,37 +68,47 @@ router.put('/:id/rate', async (req, res) => {
   res.json({ register: data })
 })
 
-// Guardar/actualizar pago
-router.put('/:id/payment', async (req, res) => {
+// Crear nueva fila de pago
+router.post('/:id/payments', async (req, res) => {
   const { method, amount, notes } = req.body
-  const register_id = req.params.id
   const currency = PAYMENT_CURRENCIES[method] || 'bs'
-
-  const { data: existing } = await supabase
+  const { data, error } = await supabase
     .from('daily_payments')
-    .select('id')
-    .eq('register_id', register_id)
-    .eq('method', method)
-    .single()
+    .insert({
+      register_id: req.params.id,
+      method,
+      amount: parseFloat(amount) || 0,
+      currency,
+      notes: notes || null
+    })
+    .select().single()
+  if (error) return res.status(500).json({ error: error.message })
+  res.status(201).json({ payment: data })
+})
 
-  let data, error
-  if (existing) {
-    ;({ data, error } = await supabase
-      .from('daily_payments')
-      .update({ amount, currency, notes })
-      .eq('id', existing.id)
-      .select()
-      .single())
-  } else {
-    ;({ data, error } = await supabase
-      .from('daily_payments')
-      .insert({ register_id, method, amount, currency, notes })
-      .select()
-      .single())
-  }
-
+// Actualizar fila de pago por ID
+router.put('/:id/payments/:paymentId', async (req, res) => {
+  const { method, amount, notes } = req.body
+  const currency = PAYMENT_CURRENCIES[method] || 'bs'
+  const { data, error } = await supabase
+    .from('daily_payments')
+    .update({ method, amount: parseFloat(amount) || 0, currency, notes: notes || null })
+    .eq('id', req.params.paymentId)
+    .eq('register_id', req.params.id)
+    .select().single()
   if (error) return res.status(500).json({ error: error.message })
   res.json({ payment: data })
+})
+
+// Eliminar fila de pago
+router.delete('/:id/payments/:paymentId', async (req, res) => {
+  const { error } = await supabase
+    .from('daily_payments')
+    .delete()
+    .eq('id', req.params.paymentId)
+    .eq('register_id', req.params.id)
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ message: 'Pago eliminado' })
 })
 
 // Agregar artículo vendido

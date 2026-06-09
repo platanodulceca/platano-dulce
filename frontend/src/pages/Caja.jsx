@@ -5,11 +5,9 @@ import {
   PAYMENT_METHODS, calcTotals, DISH_CATEGORY_LABELS, ORDER_STATUS_LABELS
 } from '../utils/helpers'
 
-const EMPTY_PAYMENTS = Object.fromEntries(PAYMENT_METHODS.map(m => [m, '']))
-
 export default function Caja() {
   const [register, setRegister] = useState(null)
-  const [payments, setPayments] = useState(EMPTY_PAYMENTS)
+  const [paymentRows, setPaymentRows] = useState([])
   const [rate, setRate] = useState('')
   const [dishes, setDishes] = useState([])
   const [loading, setLoading] = useState(true)
@@ -20,7 +18,6 @@ export default function Caja() {
   const [closingNote, setClosingNote] = useState('')
   const [showClose, setShowClose] = useState(false)
 
-  // Órdenes de mesa listas para cobrar
   const [pendingOrders, setPendingOrders] = useState([])
   const [cobrarOrder, setCobrarOrder] = useState(null)
   const [cobrandoId, setCobrandoId] = useState(null)
@@ -42,9 +39,14 @@ export default function Caja() {
       const reg = regRes.data.register
       setRegister(reg)
       setRate(reg.exchange_rate_bcv?.toString() || '')
-      const pm = { ...EMPTY_PAYMENTS }
-      reg.daily_payments?.forEach(p => { pm[p.method] = p.amount?.toString() || '' })
-      setPayments(pm)
+      setPaymentRows(
+        reg.daily_payments?.map(p => ({
+          id: p.id,
+          method: p.method,
+          amount: p.amount?.toString() || '',
+          notes: p.notes || ''
+        })) || []
+      )
       setDishes(dishRes.data.dishes || [])
     } catch (err) {
       setError(err.response?.data?.error || 'Error al cargar datos')
@@ -82,18 +84,45 @@ export default function Caja() {
     setSaving('')
   }
 
-  const savePayment = async (method) => {
-    if (!register) return
-    setSaving(method)
-    try {
-      await api.put(`/caja/${register.id}/payment`, {
-        method,
-        amount: parseFloat(payments[method]) || 0
-      })
-    } catch {}
-    setSaving('')
+  // ── Payments (row-based) ───────────────────────────────────
+  const addPaymentRow = () => {
+    setPaymentRows(rows => [...rows, { id: null, method: 'efectivo_bs', amount: '', notes: '' }])
   }
 
+  const updatePaymentRow = (idx, field, value) => {
+    setPaymentRows(rows => rows.map((r, i) => i === idx ? { ...r, [field]: value } : r))
+  }
+
+  const savePaymentRow = async (idx) => {
+    if (!register || closed) return
+    const row = paymentRows[idx]
+    const amount = parseFloat(row.amount)
+    if (!amount || amount <= 0) return
+    try {
+      if (row.id) {
+        await api.put(`/caja/${register.id}/payments/${row.id}`, {
+          method: row.method, amount, notes: row.notes
+        })
+      } else {
+        const res = await api.post(`/caja/${register.id}/payments`, {
+          method: row.method, amount, notes: row.notes
+        })
+        setPaymentRows(rows => rows.map((r, i) => i === idx ? { ...r, id: res.data.payment.id } : r))
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al guardar pago')
+    }
+  }
+
+  const deletePaymentRow = async (idx) => {
+    const row = paymentRows[idx]
+    if (row.id) {
+      try { await api.delete(`/caja/${register.id}/payments/${row.id}`) } catch {}
+    }
+    setPaymentRows(rows => rows.filter((_, i) => i !== idx))
+  }
+
+  // ── Items ──────────────────────────────────────────────────
   const addItem = async () => {
     if (!register || !newItem.dish_name || !newItem.price_bs) return
     try {
@@ -134,7 +163,6 @@ export default function Caja() {
   }
 
   const selectDish = (dish) => {
-    const rateVal = parseFloat(rate) || 1
     setNewItem({
       dish_id: dish.id,
       dish_name: dish.name,
@@ -146,10 +174,12 @@ export default function Caja() {
     })
   }
 
+  // ── Totals ─────────────────────────────────────────────────
   const rateNum = parseFloat(rate) || 0
-  const paymentsForCalc = PAYMENT_METHODS.map(m => ({
-    method: m, amount: parseFloat(payments[m]) || 0,
-    currency: PAYMENT_CURRENCY[m]
+  const paymentsForCalc = paymentRows.map(row => ({
+    method: row.method,
+    amount: parseFloat(row.amount) || 0,
+    currency: PAYMENT_CURRENCY[row.method] || 'bs'
   }))
   const { totalBs, totalUsd } = calcTotals(paymentsForCalc, rateNum)
   const totalCost = register?.sales_items?.reduce((s, i) => s + (Number(i.cost_bs) * i.quantity), 0) || 0
@@ -165,12 +195,10 @@ export default function Caja() {
           <h1 className="page-title">💰 Caja del Día</h1>
           <p className="text-sm text-muted">{fmtDate(new Date().toISOString().split('T')[0])}</p>
         </div>
-        {!closed && (
-          <span className="badge badge-abierto">Abierto</span>
-        )}
-        {closed && (
-          <span className="badge badge-cerrado">Cerrado</span>
-        )}
+        {closed
+          ? <span className="badge badge-cerrado">Cerrado</span>
+          : <span className="badge badge-abierto">Abierto</span>
+        }
       </div>
 
       {error && <div className="alert alert-error mb-4">{error}</div>}
@@ -184,7 +212,7 @@ export default function Caja() {
             </span>
             <span className="text-sm text-muted">Toca para ver detalle</span>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+          <div>
             {pendingOrders.map(order => (
               <div
                 key={order.id}
@@ -208,9 +236,7 @@ export default function Caja() {
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontWeight: 800, color: 'var(--orange)' }}>{fmtBs(order.total_bs)}</div>
                   {order.split_count > 1 && (
-                    <div className="text-xs text-muted">
-                      {fmtBs(Number(order.total_bs) / order.split_count)} c/u
-                    </div>
+                    <div className="text-xs text-muted">{fmtBs(Number(order.total_bs) / order.split_count)} c/u</div>
                   )}
                 </div>
                 <span style={{ color: 'var(--success)', fontSize: '1.2rem' }}>›</span>
@@ -224,7 +250,7 @@ export default function Caja() {
       <div className="card mb-4">
         <div className="card-header">
           <span>💱 Tasa BCV del día</span>
-          {rateNum > 0 && <span className="text-sm text-muted">1 USD = Bs. {rateNum.toFixed(2)}</span>}
+          {rateNum > 0 && <span className="text-sm text-muted">1 USD = Bs.{rateNum.toFixed(2)}</span>}
         </div>
         <div className="card-body">
           <div style={{ display: 'flex', gap: '.5rem' }}>
@@ -234,17 +260,13 @@ export default function Caja() {
               placeholder="Ej: 36.50"
               value={rate}
               onChange={e => setRate(e.target.value)}
+              onBlur={saveRate}
               disabled={closed}
               step="0.01"
               min="0"
             />
             {!closed && (
-              <button
-                className="btn btn-primary"
-                onClick={saveRate}
-                disabled={saving === 'rate'}
-                style={{ whiteSpace: 'nowrap' }}
-              >
+              <button className="btn btn-primary" onClick={saveRate} disabled={saving === 'rate'} style={{ whiteSpace: 'nowrap' }}>
                 {saving === 'rate' ? '...' : 'Guardar'}
               </button>
             )}
@@ -252,40 +274,66 @@ export default function Caja() {
         </div>
       </div>
 
-      {/* Métodos de Pago */}
+      {/* Registro de Pagos — filas individuales */}
       <div className="card mb-4">
         <div className="card-header">
-          <span>💳 Métodos de Pago</span>
-          <span className="text-sm text-muted">Monto en moneda nativa</span>
+          <span>💳 Registro de Pagos</span>
+          {!closed && (
+            <button className="btn btn-primary btn-sm" onClick={addPaymentRow}>+ Agregar</button>
+          )}
         </div>
-        <div className="card-body" style={{ padding: '1rem' }}>
-          <div style={{ display: 'grid', gap: '.75rem' }}>
-            {PAYMENT_METHODS.map(method => (
-              <div key={method} style={pmStyles.row}>
-                <div style={pmStyles.label}>
-                  <span style={pmStyles.methodName}>{PAYMENT_LABELS[method]}</span>
-                  <span style={pmStyles.currency}>
-                    {PAYMENT_CURRENCY[method] === 'usd' ? '(USD)' : '(Bs)'}
-                  </span>
-                </div>
-                <div style={pmStyles.inputArea}>
-                  <input
-                    type="number"
-                    className="form-control"
-                    placeholder="0.00"
-                    value={payments[method]}
-                    onChange={e => setPayments(p => ({ ...p, [method]: e.target.value }))}
-                    onBlur={() => !closed && savePayment(method)}
-                    disabled={closed}
-                    step="0.01"
-                    min="0"
-                    style={{ textAlign: 'right' }}
-                  />
-                  {saving === method && <span style={pmStyles.saving}>💾</span>}
-                </div>
+        <div className="card-body" style={{ padding: paymentRows.length ? '1rem' : '.5rem 1rem', display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
+          {paymentRows.length === 0 && (
+            <p className="text-sm text-muted" style={{ textAlign: 'center', padding: '.5rem 0' }}>
+              {closed ? 'Sin pagos registrados' : 'Toca "+ Agregar" para registrar un pago'}
+            </p>
+          )}
+          {paymentRows.map((row, idx) => (
+            <div key={idx} style={{ background: 'var(--gray-50)', borderRadius: 10, padding: '.75rem', display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+              {/* Método + Monto + Eliminar */}
+              <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
+                <select
+                  className="form-control"
+                  value={row.method}
+                  onChange={e => updatePaymentRow(idx, 'method', e.target.value)}
+                  onBlur={() => savePaymentRow(idx)}
+                  disabled={closed}
+                  style={{ flex: '2 1 0', minWidth: 0 }}
+                >
+                  {PAYMENT_METHODS.map(m => (
+                    <option key={m} value={m}>
+                      {PAYMENT_LABELS[m]}{PAYMENT_CURRENCY[m] === 'usd' ? ' ($)' : ' (Bs)'}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  className="form-control"
+                  placeholder="0.00"
+                  value={row.amount}
+                  onChange={e => updatePaymentRow(idx, 'amount', e.target.value)}
+                  onBlur={() => savePaymentRow(idx)}
+                  disabled={closed}
+                  step="0.01"
+                  min="0"
+                  style={{ flex: '1 1 0', minWidth: 0, textAlign: 'right' }}
+                />
+                {!closed && (
+                  <button className="btn btn-danger btn-sm btn-icon" onClick={() => deletePaymentRow(idx)} style={{ flexShrink: 0 }}>✕</button>
+                )}
               </div>
-            ))}
-          </div>
+              {/* Referencia / Nota */}
+              <input
+                className="form-control"
+                placeholder="Referencia / Nota (opcional)"
+                value={row.notes}
+                onChange={e => updatePaymentRow(idx, 'notes', e.target.value)}
+                onBlur={() => savePaymentRow(idx)}
+                disabled={closed}
+                style={{ fontSize: '.85rem' }}
+              />
+            </div>
+          ))}
         </div>
       </div>
 
@@ -312,9 +360,7 @@ export default function Caja() {
         <div className="card-header">
           <span>🍽️ Platos y Bebidas Vendidos</span>
           {!closed && (
-            <button className="btn btn-primary btn-sm" onClick={() => setShowAddItem(true)}>
-              + Agregar
-            </button>
+            <button className="btn btn-primary btn-sm" onClick={() => setShowAddItem(true)}>+ Agregar</button>
           )}
         </div>
         {register?.sales_items?.length > 0 ? (
@@ -371,10 +417,7 @@ export default function Caja() {
 
       {/* Cierre */}
       {!closed && (
-        <button
-          className="btn btn-dark btn-block btn-lg mb-4"
-          onClick={() => setShowClose(true)}
-        >
+        <button className="btn btn-dark btn-block btn-lg mb-4" onClick={() => setShowClose(true)}>
           🔒 Cerrar Caja del Día
         </button>
       )}
@@ -462,12 +505,10 @@ export default function Caja() {
               </div>
               <div style={{ background: 'var(--gray-50)', borderRadius: 8, padding: '1rem', marginBottom: '1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.4rem' }}>
-                  <span>Venta Total Bs</span>
-                  <strong>{fmtBs(totalBs)}</strong>
+                  <span>Venta Total Bs</span><strong>{fmtBs(totalBs)}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.4rem' }}>
-                  <span>Venta Total $</span>
-                  <strong>{fmtUsd(totalUsd)}</strong>
+                  <span>Venta Total $</span><strong>{fmtUsd(totalUsd)}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span>Margen estimado</span>
@@ -503,7 +544,6 @@ export default function Caja() {
               <button className="btn btn-sm" onClick={() => setCobrarOrder(null)}>✕</button>
             </div>
             <div className="modal-body">
-              {/* Detalle de ítems */}
               <div className="table-wrap mb-3">
                 <table className="table">
                   <thead>
@@ -527,8 +567,6 @@ export default function Caja() {
                   </tbody>
                 </table>
               </div>
-
-              {/* Totales */}
               <div style={{ background: 'var(--gray-50)', borderRadius: 8, padding: '.85rem 1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.3rem' }}>
                   <span style={{ fontWeight: 700 }}>Total</span>
@@ -545,7 +583,6 @@ export default function Caja() {
                   </div>
                 )}
               </div>
-
               <div className="alert alert-info mt-3">
                 Al confirmar, los ítems se agregarán automáticamente a las ventas del día y la mesa quedará libre.
               </div>
@@ -566,39 +603,4 @@ export default function Caja() {
       )}
     </div>
   )
-}
-
-const pmStyles = {
-  row: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '.5rem',
-  },
-  label: {
-    flex: '0 0 auto',
-    width: 140,
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  methodName: {
-    fontSize: '.9rem',
-    fontWeight: 600,
-    color: 'var(--dark)',
-    lineHeight: 1.2,
-  },
-  currency: {
-    fontSize: '.72rem',
-    color: 'var(--gray-500)',
-  },
-  inputArea: {
-    flex: 1,
-    display: 'flex',
-    alignItems: 'center',
-    gap: '.3rem',
-    position: 'relative',
-  },
-  saving: {
-    fontSize: '.9rem',
-    animation: 'spin .7s linear infinite',
-  },
 }
