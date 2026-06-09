@@ -28,7 +28,7 @@ router.get('/current', async (req, res) => {
 })
 
 // Generar lista automática basada en inventario
-router.post('/generate', requireRoles('administrador', 'chef', 'dueño'), async (req, res) => {
+router.post('/generate', requireRoles('admin', 'chef', 'dueno'), async (req, res) => {
   const now = new Date()
   const day = now.getDay()
   const diff = day === 0 ? -6 : 1 - day

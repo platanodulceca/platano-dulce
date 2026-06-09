@@ -16,43 +16,56 @@ router.post('/login', async (req, res) => {
     .from('users')
     .select('*')
     .eq('email', email.toLowerCase().trim())
-    .eq('active', true)
     .limit(1)
-    // mesero is a valid role
 
   if (error || !users?.length) {
     return res.status(401).json({ error: 'Credenciales inválidas' })
   }
 
-  const user = users[0]
-  const valid = await bcrypt.compare(password, user.password_hash)
+  const u = users[0]
+
+  // Soporta tanto 'password' como 'password_hash' según el schema
+  const storedHash = u.password ?? u.password_hash
+  if (!storedHash) {
+    return res.status(401).json({ error: 'Credenciales inválidas' })
+  }
+
+  const valid = await bcrypt.compare(password, storedHash)
   if (!valid) {
     return res.status(401).json({ error: 'Credenciales inválidas' })
   }
 
+  // Normalizar campos: soporta nombre/name y rol/role
+  const name = u.nombre ?? u.name ?? u.email
+  const role = u.rol   ?? u.role
+
   const token = jwt.sign(
-    { id: user.id, email: user.email, name: user.name, role: user.role },
+    { id: u.id, email: u.email, name, role },
     process.env.JWT_SECRET,
     { expiresIn: '12h' }
   )
 
   res.json({
     token,
-    user: { id: user.id, email: user.email, name: user.name, role: user.role }
+    user: { id: u.id, email: u.email, name, role }
   })
 })
 
 router.get('/me', requireAuth, async (req, res) => {
-  const { data: user, error } = await supabase
+  const { data: u, error } = await supabase
     .from('users')
-    .select('id, email, name, role, active')
+    .select('*')
     .eq('id', req.user.id)
     .single()
 
-  if (error || !user) {
+  if (error || !u) {
     return res.status(404).json({ error: 'Usuario no encontrado' })
   }
-  res.json({ user })
+
+  const name = u.nombre ?? u.name ?? u.email
+  const role = u.rol   ?? u.role
+
+  res.json({ user: { id: u.id, email: u.email, name, role } })
 })
 
 router.post('/logout', requireAuth, (req, res) => {

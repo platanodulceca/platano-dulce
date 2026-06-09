@@ -132,7 +132,7 @@ router.delete('/:id/items/:itemId', async (req, res) => {
 })
 
 // Cerrar el día
-router.put('/:id/close', requireRoles('administrador', 'cajero', 'dueño'), async (req, res) => {
+router.put('/:id/close', requireRoles('admin', 'cajero', 'dueno'), async (req, res) => {
   const { notes } = req.body
   const { data, error } = await supabase
     .from('daily_registers')

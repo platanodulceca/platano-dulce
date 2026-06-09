@@ -34,7 +34,7 @@ router.get('/', async (req, res) => {
 })
 
 // Crear mesa
-router.post('/', requireRoles('administrador', 'dueño'), async (req, res) => {
+router.post('/', requireRoles('admin', 'dueno'), async (req, res) => {
   const { number, name, capacity } = req.body
   const { data, error } = await supabase
     .from('tables')
@@ -46,7 +46,7 @@ router.post('/', requireRoles('administrador', 'dueño'), async (req, res) => {
 })
 
 // Actualizar mesa
-router.put('/:id', requireRoles('administrador', 'dueño'), async (req, res) => {
+router.put('/:id', requireRoles('admin', 'dueno'), async (req, res) => {
   const { number, name, capacity, status, active } = req.body
   const { data, error } = await supabase
     .from('tables')

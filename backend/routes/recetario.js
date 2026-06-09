@@ -28,7 +28,7 @@ router.get('/', async (req, res) => {
 })
 
 // Crear plato
-router.post('/dishes', requireRoles('administrador', 'chef', 'dueño'), async (req, res) => {
+router.post('/dishes', requireRoles('admin', 'chef', 'dueno'), async (req, res) => {
   const { name, category, price_bs, price_usd, cost_bs } = req.body
   const { data, error } = await supabase
     .from('dishes')
@@ -40,7 +40,7 @@ router.post('/dishes', requireRoles('administrador', 'chef', 'dueño'), async (r
 })
 
 // Editar plato
-router.put('/dishes/:id', requireRoles('administrador', 'chef', 'dueño'), async (req, res) => {
+router.put('/dishes/:id', requireRoles('admin', 'chef', 'dueno'), async (req, res) => {
   const { name, category, price_bs, price_usd, cost_bs, active } = req.body
   const { data, error } = await supabase
     .from('dishes')
@@ -53,7 +53,7 @@ router.put('/dishes/:id', requireRoles('administrador', 'chef', 'dueño'), async
 })
 
 // Agregar/actualizar ingrediente en receta
-router.post('/ingredients', requireRoles('administrador', 'chef', 'dueño'), async (req, res) => {
+router.post('/ingredients', requireRoles('admin', 'chef', 'dueno'), async (req, res) => {
   const { dish_id, product_id, quantity_per_portion } = req.body
 
   const { data: existing } = await supabase
@@ -82,7 +82,7 @@ router.post('/ingredients', requireRoles('administrador', 'chef', 'dueño'), asy
 })
 
 // Eliminar ingrediente de receta
-router.delete('/ingredients/:id', requireRoles('administrador', 'chef', 'dueño'), async (req, res) => {
+router.delete('/ingredients/:id', requireRoles('admin', 'chef', 'dueno'), async (req, res) => {
   const { error } = await supabase
     .from('recipe_ingredients')
     .delete()

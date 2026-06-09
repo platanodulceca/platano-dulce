@@ -62,19 +62,19 @@ export const calcTotals = (payments, rate) => {
 }
 
 export const ROLE_LABELS = {
-  administrador: 'Administrador',
-  cajero:        'Cajero',
-  chef:          'Chef',
-  dueño:         'Dueño',
-  mesero:        'Mesero'
+  admin:  'Administrador',
+  cajero: 'Cajero',
+  chef:   'Chef',
+  dueno:  'Dueño',
+  mesero: 'Mesero'
 }
 
 export const ROLE_MODULES = {
-  administrador: ['dashboard','caja','mesero','cocina','inventario','recetario','compras','cuentas','historial'],
-  cajero:        ['caja','cuentas'],
-  chef:          ['cocina','inventario','recetario','compras'],
-  dueño:         ['dashboard','caja','mesero','cocina','inventario','recetario','compras','cuentas','historial'],
-  mesero:        ['mesero']
+  admin:  ['dashboard','caja','mesero','cocina','inventario','recetario','compras','cuentas','historial'],
+  cajero: ['caja','cuentas'],
+  chef:   ['cocina','inventario','recetario','compras'],
+  dueno:  ['dashboard','caja','mesero','cocina','inventario','recetario','compras','cuentas','historial'],
+  mesero: ['mesero']
 }
 
 export const ORDER_STATUS_LABELS = {

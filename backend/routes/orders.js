@@ -102,7 +102,7 @@ router.post('/:id/items', async (req, res) => {
 
   const { data: order } = await supabase.from('orders').select('status, waiter_id').eq('id', req.params.id).single()
   if (!order) return res.status(404).json({ error: 'Orden no encontrada' })
-  if (order.waiter_id !== req.user.id && !['administrador','dueño'].includes(req.user.role)) {
+  if (order.waiter_id !== req.user.id && !['admin','dueno'].includes(req.user.role)) {
     return res.status(403).json({ error: 'Sin acceso a esta orden' })
   }
   if (['cobrada','cancelada'].includes(order.status)) {
@@ -192,7 +192,7 @@ router.put('/:id/send', async (req, res) => {
 })
 
 // ── Actualizar estado de ítem (para chef) ─────────────────────
-router.put('/:id/items/:itemId/status', requireRoles('administrador','chef','dueño'), async (req, res) => {
+router.put('/:id/items/:itemId/status', requireRoles('admin','chef','dueno'), async (req, res) => {
   const { status } = req.body
   const validStatuses = ['pendiente','en_preparacion','listo','entregado']
   if (!validStatuses.includes(status)) return res.status(400).json({ error: 'Estado inválido' })
@@ -237,7 +237,7 @@ router.put('/:id/deliver', async (req, res) => {
 })
 
 // ── Cobrar orden (cajero) ─────────────────────────────────────
-router.put('/:id/cobrar', requireRoles('administrador','cajero','dueño'), async (req, res) => {
+router.put('/:id/cobrar', requireRoles('admin','cajero','dueno'), async (req, res) => {
   const { data: order } = await supabase
     .from('orders')
     .select('*, order_items(*)')
