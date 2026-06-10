@@ -39,7 +39,7 @@ export default function Caja() {
       ])
       const reg = regRes.data.register
       setRegister(reg)
-      setRate(reg.exchange_rate_bcv?.toString() || '')
+      setRate(reg.tasa_bcv?.toString() || '')
       setPaymentRows(
         reg.caja_pagos?.map(p => ({
           id: p.id,
@@ -80,7 +80,7 @@ export default function Caja() {
     setSaving('rate')
     try {
       const res = await api.put(`/caja/${register.id}/rate`, { exchange_rate_bcv: parseFloat(rate) || 0 })
-      setRegister(r => ({ ...r, exchange_rate_bcv: res.data.register.exchange_rate_bcv }))
+      setRegister(r => ({ ...r, tasa_bcv: res.data.register.tasa_bcv }))
     } catch {}
     setSaving('')
   }
@@ -196,7 +196,7 @@ export default function Caja() {
   const { totalBs, totalUsd } = calcTotals(paymentsForCalc, rateNum)
   const totalCost = register?.venta_items?.reduce((s, i) => s + (Number(i.cost_bs) * i.quantity), 0) || 0
   const margin = totalBs > 0 ? ((totalBs - totalCost) / totalBs * 100) : 0
-  const closed = register?.status === 'cerrado'
+  const closed = register?.estado === 'cerrado'
 
   if (loading) return <div className="loading-screen"><div className="spinner" /></div>
 

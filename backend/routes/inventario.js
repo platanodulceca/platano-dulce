@@ -67,7 +67,7 @@ router.get('/today', async (req, res) => {
   const { data: todayRegister } = await supabase
     .from('caja_registros')
     .select('id')
-    .eq('date', today)
+    .eq('fecha', today)
     .single()
 
   const theoreticalConsumption = {}

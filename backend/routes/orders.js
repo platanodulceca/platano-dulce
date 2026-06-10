@@ -254,13 +254,13 @@ router.put('/:id/cobrar', requireRoles('admin','cajero','dueno'), async (req, re
   let { data: register } = await supabase
     .from('caja_registros')
     .select('id')
-    .eq('date', today)
+    .eq('fecha', today)
     .single()
 
   if (!register) {
     const { data: newReg } = await supabase
       .from('caja_registros')
-      .insert({ date: today, exchange_rate_bcv: 0, created_by: req.user.id })
+      .insert({ fecha: today, tasa_bcv: 0, cajero_id: req.user.id })
       .select('id').single()
     register = newReg
   }

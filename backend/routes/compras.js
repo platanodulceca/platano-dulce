@@ -53,7 +53,7 @@ router.post('/generate', requireRoles('admin', 'chef', 'dueno'), async (req, res
   const { data: registers } = await supabase
     .from('caja_registros')
     .select('id')
-    .gte('date', sevenDaysAgoStr)
+    .gte('fecha', sevenDaysAgoStr)
 
   const weeklyConsumption = {}
   if (registers?.length) {

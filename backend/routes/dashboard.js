@@ -11,7 +11,7 @@ router.get('/summary', async (req, res) => {
   const { data: register } = await supabase
     .from('caja_registros')
     .select('*, caja_pagos(*), venta_items(*)')
-    .eq('date', today)
+    .eq('fecha', today)
     .single()
 
   const { data: pendingAccounts } = await supabase
@@ -28,7 +28,7 @@ router.get('/summary', async (req, res) => {
   let totalBs = 0
   let totalUsd = 0
   let totalCost = 0
-  const rate = register?.exchange_rate_bcv || 1
+  const rate = register?.tasa_bcv || 1
 
   if (register?.caja_pagos) {
     register.caja_pagos.forEach(p => {
@@ -78,7 +78,7 @@ router.get('/top-dishes', async (req, res) => {
   const { data: registers } = await supabase
     .from('caja_registros')
     .select('id')
-    .gte('date', sinceStr)
+    .gte('fecha', sinceStr)
 
   if (!registers?.length) return res.json({ dishes: [] })
 
@@ -109,8 +109,8 @@ router.get('/historial', async (req, res) => {
   const { data, error } = await supabase
     .from('caja_registros')
     .select('*, caja_pagos(*), venta_items(id, dish_name, quantity, price_bs, cost_bs)')
-    .eq('status', 'cerrado')
-    .order('date', { ascending: false })
+    .eq('estado', 'cerrado')
+    .order('fecha', { ascending: false })
     .limit(Number(limit))
 
   if (error) return res.status(500).json({ error: error.message })

@@ -25,13 +25,13 @@ router.get('/today', async (req, res) => {
   let { data: register } = await supabase
     .from('caja_registros')
     .select('*, caja_pagos(*), venta_items(*)')
-    .eq('date', today)
+    .eq('fecha', today)
     .single()
 
   if (!register) {
     const { data: newReg, error } = await supabase
       .from('caja_registros')
-      .insert({ date: today, exchange_rate_bcv: 0, created_by: req.user.id })
+      .insert({ fecha: today, tasa_bcv: 0, cajero_id: req.user.id })
       .select('*, caja_pagos(*), venta_items(*)')
       .single()
 
@@ -47,7 +47,7 @@ router.get('/date/:date', async (req, res) => {
   const { data: register, error } = await supabase
     .from('caja_registros')
     .select('*, caja_pagos(*), venta_items(*)')
-    .eq('date', req.params.date)
+    .eq('fecha', req.params.date)
     .single()
 
   if (error) return res.status(404).json({ error: 'Registro no encontrado' })
@@ -59,7 +59,7 @@ router.put('/:id/rate', async (req, res) => {
   const { exchange_rate_bcv } = req.body
   const { data, error } = await supabase
     .from('caja_registros')
-    .update({ exchange_rate_bcv })
+    .update({ tasa_bcv: exchange_rate_bcv })
     .eq('id', req.params.id)
     .select()
     .single()
@@ -147,7 +147,7 @@ router.put('/:id/close', requireRoles('admin', 'cajero', 'dueno'), async (req, r
   const { data, error } = await supabase
     .from('caja_registros')
     .update({
-      status: 'cerrado',
+      estado: 'cerrado',
       notes,
       closed_by: req.user.id,
       closed_at: new Date().toISOString()
