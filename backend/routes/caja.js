@@ -115,14 +115,15 @@ router.delete('/:id/payments/:paymentId', async (req, res) => {
 
 // Agregar artículo vendido
 router.post('/:id/items', async (req, res) => {
-  const { dish_id, dish_name, item_type, quantity, price_bs, price_usd, cost_bs } = req.body
+  const { nombre, cantidad, precio, costo } = req.body
   const { data, error } = await supabase
     .from('venta_items')
     .insert({
-      register_id: req.params.id,
-      dish_id, dish_name, item_type,
-      quantity: quantity || 1,
-      price_bs, price_usd, cost_bs
+      caja_id:  req.params.id,
+      nombre,
+      cantidad: parseInt(cantidad) || 1,
+      precio:   parseFloat(precio) || 0,
+      costo:    parseFloat(costo) || 0,
     })
     .select()
     .single()
@@ -137,7 +138,7 @@ router.delete('/:id/items/:itemId', async (req, res) => {
     .from('venta_items')
     .delete()
     .eq('id', req.params.itemId)
-    .eq('register_id', req.params.id)
+    .eq('caja_id', req.params.id)
 
   if (error) return res.status(500).json({ error: error.message })
   res.json({ message: 'Artículo eliminado' })

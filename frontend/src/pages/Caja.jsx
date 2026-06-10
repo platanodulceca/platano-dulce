@@ -152,10 +152,10 @@ export default function Caja() {
     setAddingItem(true)
     try {
       const res = await api.post(`/caja/${register.id}/items`, {
-        dish_name: pending.dish.name,
-        quantity:  pending.qty,
-        price_bs:  pending.dish.price_bs,
-        cost_bs:   pending.dish.cost_bs,
+        nombre:   pending.dish.name,
+        cantidad: pending.qty,
+        precio:   pending.dish.price_bs,
+        costo:    pending.dish.cost_bs,
       })
       setRegister(r => ({ ...r, venta_items: [...(r.venta_items || []), res.data.item] }))
       setPending(null)
