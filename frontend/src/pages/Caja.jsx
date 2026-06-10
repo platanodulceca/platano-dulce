@@ -12,6 +12,7 @@ export default function Caja() {
   const [dishes, setDishes] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState('')
+  const [addingRow, setAddingRow] = useState(false)
   const [error, setError] = useState('')
   const [showAddItem, setShowAddItem] = useState(false)
   const [newItem, setNewItem] = useState({ dish_id: '', dish_name: '', item_type: 'plato', quantity: 1, price_bs: '', price_usd: '', cost_bs: '' })
@@ -85,8 +86,25 @@ export default function Caja() {
   }
 
   // ── Payments (row-based) ───────────────────────────────────
-  const addPaymentRow = () => {
-    setPaymentRows(rows => [...rows, { id: null, method: 'efectivo_bs', amount: '', notes: '' }])
+  // Crea la fila en BD inmediatamente para que tenga id desde el inicio.
+  // Así los onBlur posteriores son siempre PUTs, no POSTs que dependen del timing.
+  const addPaymentRow = async () => {
+    if (!register || closed || addingRow) return
+    setAddingRow(true)
+    try {
+      const res = await api.post(`/caja/${register.id}/payments`, {
+        method: 'efectivo_bs', amount: 0, notes: ''
+      })
+      setPaymentRows(rows => [...rows, {
+        id:     res.data.payment.id,
+        method: 'efectivo_bs',
+        amount: '',
+        notes:  ''
+      }])
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al crear pago')
+    }
+    setAddingRow(false)
   }
 
   const updatePaymentRow = (idx, field, value) => {
@@ -96,19 +114,13 @@ export default function Caja() {
   const savePaymentRow = async (idx) => {
     if (!register || closed) return
     const row = paymentRows[idx]
-    const amount = parseFloat(row.amount)
-    if (!amount || amount <= 0) return
+    if (!row.id) return
     try {
-      if (row.id) {
-        await api.put(`/caja/${register.id}/payments/${row.id}`, {
-          method: row.method, amount, notes: row.notes
-        })
-      } else {
-        const res = await api.post(`/caja/${register.id}/payments`, {
-          method: row.method, amount, notes: row.notes
-        })
-        setPaymentRows(rows => rows.map((r, i) => i === idx ? { ...r, id: res.data.payment.id } : r))
-      }
+      await api.put(`/caja/${register.id}/payments/${row.id}`, {
+        method: row.method,
+        amount: parseFloat(row.amount) || 0,
+        notes:  row.notes
+      })
     } catch (err) {
       setError(err.response?.data?.error || 'Error al guardar pago')
     }
@@ -133,7 +145,7 @@ export default function Caja() {
         price_usd: parseFloat(newItem.price_usd) || 0,
         cost_bs: parseFloat(newItem.cost_bs) || 0
       })
-      setRegister(r => ({ ...r, sales_items: [...(r.sales_items || []), res.data.item] }))
+      setRegister(r => ({ ...r, venta_items: [...(r.venta_items || []), res.data.item] }))
       setNewItem({ dish_id: '', dish_name: '', item_type: 'plato', quantity: 1, price_bs: '', price_usd: '', cost_bs: '' })
       setShowAddItem(false)
     } catch (err) {
@@ -145,7 +157,7 @@ export default function Caja() {
     if (!register) return
     try {
       await api.delete(`/caja/${register.id}/items/${itemId}`)
-      setRegister(r => ({ ...r, sales_items: r.sales_items.filter(i => i.id !== itemId) }))
+      setRegister(r => ({ ...r, venta_items: r.venta_items.filter(i => i.id !== itemId) }))
     } catch {}
   }
 
@@ -182,7 +194,7 @@ export default function Caja() {
     currency: PAYMENT_CURRENCY[row.method] || 'bs'
   }))
   const { totalBs, totalUsd } = calcTotals(paymentsForCalc, rateNum)
-  const totalCost = register?.sales_items?.reduce((s, i) => s + (Number(i.cost_bs) * i.quantity), 0) || 0
+  const totalCost = register?.venta_items?.reduce((s, i) => s + (Number(i.cost_bs) * i.quantity), 0) || 0
   const margin = totalBs > 0 ? ((totalBs - totalCost) / totalBs * 100) : 0
   const closed = register?.status === 'cerrado'
 
@@ -229,7 +241,7 @@ export default function Caja() {
                     <span className="text-sm text-muted" style={{ marginLeft: '.5rem' }}>· {order.waiter_name}</span>
                   </div>
                   <div className="text-xs text-muted">
-                    {order.order_items?.length || 0} ítems · {ORDER_STATUS_LABELS[order.status]}
+                    {order.orden_items?.length || 0} ítems · {ORDER_STATUS_LABELS[order.status]}
                     {order.split_count > 1 && ` · Dividir entre ${order.split_count}`}
                   </div>
                 </div>
@@ -279,7 +291,9 @@ export default function Caja() {
         <div className="card-header">
           <span>💳 Registro de Pagos</span>
           {!closed && (
-            <button className="btn btn-primary btn-sm" onClick={addPaymentRow}>+ Agregar</button>
+            <button className="btn btn-primary btn-sm" onClick={addPaymentRow} disabled={addingRow}>
+              {addingRow ? '...' : '+ Agregar'}
+            </button>
           )}
         </div>
         <div className="card-body" style={{ padding: paymentRows.length ? '1rem' : '.5rem 1rem', display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
@@ -363,7 +377,7 @@ export default function Caja() {
             <button className="btn btn-primary btn-sm" onClick={() => setShowAddItem(true)}>+ Agregar</button>
           )}
         </div>
-        {register?.sales_items?.length > 0 ? (
+        {register?.venta_items?.length > 0 ? (
           <div className="table-wrap">
             <table className="table">
               <thead>
@@ -376,7 +390,7 @@ export default function Caja() {
                 </tr>
               </thead>
               <tbody>
-                {register.sales_items.map(item => (
+                {register.venta_items.map(item => (
                   <tr key={item.id}>
                     <td>
                       <div style={{ fontWeight: 600 }}>{item.dish_name}</div>
@@ -397,7 +411,7 @@ export default function Caja() {
                 <tr style={{ background: 'var(--gray-50)' }}>
                   <td colSpan={2} style={{ fontWeight: 700, paddingLeft: '.75rem' }}>Total</td>
                   <td style={{ textAlign: 'right', fontWeight: 700 }}>
-                    {fmtBs(register.sales_items.reduce((s, i) => s + Number(i.price_bs) * i.quantity, 0))}
+                    {fmtBs(register.venta_items.reduce((s, i) => s + Number(i.price_bs) * i.quantity, 0))}
                   </td>
                   <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--coral)' }}>
                     {fmtBs(totalCost)}
@@ -554,7 +568,7 @@ export default function Caja() {
                     </tr>
                   </thead>
                   <tbody>
-                    {cobrarOrder.order_items?.map(item => (
+                    {cobrarOrder.orden_items?.map(item => (
                       <tr key={item.id}>
                         <td>
                           <div style={{ fontWeight: 600 }}>{item.dish_name}</div>
