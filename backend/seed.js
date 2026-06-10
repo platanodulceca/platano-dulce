@@ -67,65 +67,66 @@ const platos = [
 ]
 
 // ── Inventario ────────────────────────────────────────────────
+// Columnas reales: nombre, unidad, stock_minimo, categoria, activo
 const productos = [
   // Proteínas
-  { name: 'Carne de res',        categoria: 'proteinas',   unit: 'kg',  current_stock: 5,  stock_minimo: 3,   cost_per_unit: 8 * RATE },
-  { name: 'Pollo entero',        categoria: 'proteinas',   unit: 'kg',  current_stock: 8,  stock_minimo: 4,   cost_per_unit: 3.5 * RATE },
-  { name: 'Pernil de cerdo',     categoria: 'proteinas',   unit: 'kg',  current_stock: 4,  stock_minimo: 2,   cost_per_unit: 5 * RATE },
-  { name: 'Chivo',               categoria: 'proteinas',   unit: 'kg',  current_stock: 3,  stock_minimo: 1,   cost_per_unit: 6 * RATE },
-  { name: 'Mariscos mixtos',     categoria: 'proteinas',   unit: 'kg',  current_stock: 2,  stock_minimo: 1,   cost_per_unit: 9 * RATE },
-  { name: 'Chicharrón',          categoria: 'proteinas',   unit: 'kg',  current_stock: 2,  stock_minimo: 1,   cost_per_unit: 4 * RATE },
-  { name: 'Jamón de pierna',     categoria: 'proteinas',   unit: 'kg',  current_stock: 2,  stock_minimo: 1,   cost_per_unit: 5 * RATE },
+  { nombre: 'Carne de res',        categoria: 'proteinas',   unidad: 'kg',       stock_minimo: 3   },
+  { nombre: 'Pollo entero',        categoria: 'proteinas',   unidad: 'kg',       stock_minimo: 4   },
+  { nombre: 'Pernil de cerdo',     categoria: 'proteinas',   unidad: 'kg',       stock_minimo: 2   },
+  { nombre: 'Chivo',               categoria: 'proteinas',   unidad: 'kg',       stock_minimo: 1   },
+  { nombre: 'Mariscos mixtos',     categoria: 'proteinas',   unidad: 'kg',       stock_minimo: 1   },
+  { nombre: 'Chicharrón',          categoria: 'proteinas',   unidad: 'kg',       stock_minimo: 1   },
+  { nombre: 'Jamón de pierna',     categoria: 'proteinas',   unidad: 'kg',       stock_minimo: 1   },
 
   // Granos y cereales
-  { name: 'Arroz blanco',        categoria: 'granos',      unit: 'kg',  current_stock: 20, stock_minimo: 10,  cost_per_unit: 1.2 * RATE },
-  { name: 'Caraotas negras',     categoria: 'granos',      unit: 'kg',  current_stock: 10, stock_minimo: 5,   cost_per_unit: 1.5 * RATE },
-  { name: 'Caraotas rojas',      categoria: 'granos',      unit: 'kg',  current_stock: 5,  stock_minimo: 2,   cost_per_unit: 1.5 * RATE },
-  { name: 'Lentejas',            categoria: 'granos',      unit: 'kg',  current_stock: 5,  stock_minimo: 2,   cost_per_unit: 1.3 * RATE },
+  { nombre: 'Arroz blanco',        categoria: 'granos',      unidad: 'kg',       stock_minimo: 10  },
+  { nombre: 'Caraotas negras',     categoria: 'granos',      unidad: 'kg',       stock_minimo: 5   },
+  { nombre: 'Caraotas rojas',      categoria: 'granos',      unidad: 'kg',       stock_minimo: 2   },
+  { nombre: 'Lentejas',            categoria: 'granos',      unidad: 'kg',       stock_minimo: 2   },
 
   // Harina y masa
-  { name: 'Harina PAN',          categoria: 'harinas',     unit: 'kg',  current_stock: 15, stock_minimo: 8,   cost_per_unit: 1.0 * RATE },
-  { name: 'Harina de trigo',     categoria: 'harinas',     unit: 'kg',  current_stock: 8,  stock_minimo: 4,   cost_per_unit: 1.2 * RATE },
-  { name: 'Maíz tierno molido',  categoria: 'harinas',     unit: 'kg',  current_stock: 5,  stock_minimo: 2,   cost_per_unit: 0.8 * RATE },
+  { nombre: 'Harina PAN',          categoria: 'harinas',     unidad: 'kg',       stock_minimo: 8   },
+  { nombre: 'Harina de trigo',     categoria: 'harinas',     unidad: 'kg',       stock_minimo: 4   },
+  { nombre: 'Maíz tierno molido',  categoria: 'harinas',     unidad: 'kg',       stock_minimo: 2   },
 
   // Lácteos
-  { name: 'Queso de mano',       categoria: 'lacteos',     unit: 'kg',  current_stock: 4,  stock_minimo: 2,   cost_per_unit: 5 * RATE },
-  { name: 'Queso blanco duro',   categoria: 'lacteos',     unit: 'kg',  current_stock: 3,  stock_minimo: 1.5, cost_per_unit: 4 * RATE },
-  { name: 'Queso amarillo',      categoria: 'lacteos',     unit: 'kg',  current_stock: 2,  stock_minimo: 1,   cost_per_unit: 6 * RATE },
-  { name: 'Mantequilla',         categoria: 'lacteos',     unit: 'kg',  current_stock: 2,  stock_minimo: 0.5, cost_per_unit: 4.5 * RATE },
-  { name: 'Leche entera',        categoria: 'lacteos',     unit: 'litros', current_stock: 10, stock_minimo: 4, cost_per_unit: 1.0 * RATE },
-  { name: 'Nata / Crema de leche', categoria: 'lacteos',  unit: 'litros', current_stock: 3, stock_minimo: 1,  cost_per_unit: 2.5 * RATE },
+  { nombre: 'Queso de mano',       categoria: 'lacteos',     unidad: 'kg',       stock_minimo: 2   },
+  { nombre: 'Queso blanco duro',   categoria: 'lacteos',     unidad: 'kg',       stock_minimo: 1.5 },
+  { nombre: 'Queso amarillo',      categoria: 'lacteos',     unidad: 'kg',       stock_minimo: 1   },
+  { nombre: 'Mantequilla',         categoria: 'lacteos',     unidad: 'kg',       stock_minimo: 0.5 },
+  { nombre: 'Leche entera',        categoria: 'lacteos',     unidad: 'litros',   stock_minimo: 4   },
+  { nombre: 'Nata / Crema de leche', categoria: 'lacteos',  unidad: 'litros',   stock_minimo: 1   },
 
-  // Vegetales y condimentos
-  { name: 'Tomate',              categoria: 'vegetales',   unit: 'kg',  current_stock: 5,  stock_minimo: 2,   cost_per_unit: 1.0 * RATE },
-  { name: 'Cebolla',             categoria: 'vegetales',   unit: 'kg',  current_stock: 5,  stock_minimo: 2,   cost_per_unit: 0.8 * RATE },
-  { name: 'Ají dulce',           categoria: 'vegetales',   unit: 'kg',  current_stock: 2,  stock_minimo: 0.5, cost_per_unit: 1.2 * RATE },
-  { name: 'Ajo',                 categoria: 'vegetales',   unit: 'kg',  current_stock: 1,  stock_minimo: 0.3, cost_per_unit: 2.5 * RATE },
-  { name: 'Cilantro',            categoria: 'vegetales',   unit: 'manojos', current_stock: 5, stock_minimo: 2, cost_per_unit: 0.5 * RATE },
-  { name: 'Aguacate',            categoria: 'vegetales',   unit: 'unidades', current_stock: 10, stock_minimo: 5, cost_per_unit: 0.8 * RATE },
-  { name: 'Papas',               categoria: 'vegetales',   unit: 'kg',  current_stock: 8,  stock_minimo: 3,   cost_per_unit: 0.7 * RATE },
-  { name: 'Pollo desmenuzado (relleno)', categoria: 'vegetales', unit: 'kg', current_stock: 3, stock_minimo: 1.5, cost_per_unit: 4 * RATE },
+  // Vegetales
+  { nombre: 'Tomate',              categoria: 'vegetales',   unidad: 'kg',       stock_minimo: 2   },
+  { nombre: 'Cebolla',             categoria: 'vegetales',   unidad: 'kg',       stock_minimo: 2   },
+  { nombre: 'Ají dulce',           categoria: 'vegetales',   unidad: 'kg',       stock_minimo: 0.5 },
+  { nombre: 'Ajo',                 categoria: 'vegetales',   unidad: 'kg',       stock_minimo: 0.3 },
+  { nombre: 'Cilantro',            categoria: 'vegetales',   unidad: 'manojos',  stock_minimo: 2   },
+  { nombre: 'Aguacate',            categoria: 'vegetales',   unidad: 'unidades', stock_minimo: 5   },
+  { nombre: 'Papas',               categoria: 'vegetales',   unidad: 'kg',       stock_minimo: 3   },
+  { nombre: 'Pollo desmenuzado',   categoria: 'vegetales',   unidad: 'kg',       stock_minimo: 1.5 },
 
   // Plátanos
-  { name: 'Plátano verde',       categoria: 'platanos',    unit: 'kg',  current_stock: 10, stock_minimo: 5,   cost_per_unit: 0.5 * RATE },
-  { name: 'Plátano maduro',      categoria: 'platanos',    unit: 'kg',  current_stock: 10, stock_minimo: 5,   cost_per_unit: 0.6 * RATE },
-  { name: 'Cambur',              categoria: 'platanos',    unit: 'kg',  current_stock: 3,  stock_minimo: 1,   cost_per_unit: 0.5 * RATE },
+  { nombre: 'Plátano verde',       categoria: 'platanos',    unidad: 'kg',       stock_minimo: 5   },
+  { nombre: 'Plátano maduro',      categoria: 'platanos',    unidad: 'kg',       stock_minimo: 5   },
+  { nombre: 'Cambur',              categoria: 'platanos',    unidad: 'kg',       stock_minimo: 1   },
 
-  // Bebidas y líquidos
-  { name: 'Malta (lata/botella)', categoria: 'bebidas',   unit: 'unidades', current_stock: 24, stock_minimo: 12, cost_per_unit: 0.6 * RATE },
-  { name: 'Refresco 600ml',      categoria: 'bebidas',    unit: 'unidades', current_stock: 24, stock_minimo: 12, cost_per_unit: 0.5 * RATE },
-  { name: 'Agua mineral 600ml',  categoria: 'bebidas',    unit: 'unidades', current_stock: 24, stock_minimo: 12, cost_per_unit: 0.3 * RATE },
-  { name: 'Papelón',             categoria: 'bebidas',    unit: 'kg',  current_stock: 3,  stock_minimo: 1,   cost_per_unit: 1.0 * RATE },
-  { name: 'Limón',               categoria: 'bebidas',    unit: 'kg',  current_stock: 2,  stock_minimo: 0.5, cost_per_unit: 0.8 * RATE },
+  // Bebidas
+  { nombre: 'Malta (lata/botella)', categoria: 'bebidas',   unidad: 'unidades', stock_minimo: 12  },
+  { nombre: 'Refresco 600ml',      categoria: 'bebidas',    unidad: 'unidades', stock_minimo: 12  },
+  { nombre: 'Agua mineral 600ml',  categoria: 'bebidas',    unidad: 'unidades', stock_minimo: 12  },
+  { nombre: 'Papelón',             categoria: 'bebidas',    unidad: 'kg',       stock_minimo: 1   },
+  { nombre: 'Limón',               categoria: 'bebidas',    unidad: 'kg',       stock_minimo: 0.5 },
 
   // Aceites y condimentos
-  { name: 'Aceite vegetal',      categoria: 'condimentos', unit: 'litros', current_stock: 4, stock_minimo: 2,  cost_per_unit: 2.0 * RATE },
-  { name: 'Sal',                 categoria: 'condimentos', unit: 'kg',  current_stock: 2,  stock_minimo: 0.5, cost_per_unit: 0.5 * RATE },
-  { name: 'Azúcar',              categoria: 'condimentos', unit: 'kg',  current_stock: 5,  stock_minimo: 2,   cost_per_unit: 0.8 * RATE },
-  { name: 'Comino',              categoria: 'condimentos', unit: 'kg',  current_stock: 0.5, stock_minimo: 0.2, cost_per_unit: 5.0 * RATE },
-  { name: 'Pimienta negra',      categoria: 'condimentos', unit: 'kg',  current_stock: 0.3, stock_minimo: 0.1, cost_per_unit: 8.0 * RATE },
-  { name: 'Onoto / Annatto',     categoria: 'condimentos', unit: 'kg',  current_stock: 0.3, stock_minimo: 0.1, cost_per_unit: 3.0 * RATE },
-  { name: 'Salsa de tomate',     categoria: 'condimentos', unit: 'litros', current_stock: 2, stock_minimo: 0.5, cost_per_unit: 1.5 * RATE },
+  { nombre: 'Aceite vegetal',      categoria: 'condimentos', unidad: 'litros',  stock_minimo: 2   },
+  { nombre: 'Sal',                 categoria: 'condimentos', unidad: 'kg',      stock_minimo: 0.5 },
+  { nombre: 'Azúcar',              categoria: 'condimentos', unidad: 'kg',      stock_minimo: 2   },
+  { nombre: 'Comino',              categoria: 'condimentos', unidad: 'kg',      stock_minimo: 0.2 },
+  { nombre: 'Pimienta negra',      categoria: 'condimentos', unidad: 'kg',      stock_minimo: 0.1 },
+  { nombre: 'Onoto / Annatto',     categoria: 'condimentos', unidad: 'kg',      stock_minimo: 0.1 },
+  { nombre: 'Salsa de tomate',     categoria: 'condimentos', unidad: 'litros',  stock_minimo: 0.5 },
 ]
 
 // ── Mesas ─────────────────────────────────────────────────────
@@ -194,9 +195,11 @@ async function seed() {
     console.log('  ↳ ya existen, se omiten')
   } else {
     const rows = productos.map(p => ({
-      ...p,
-      cost_per_unit: Math.round(p.cost_per_unit),
-      activo: true,
+      nombre:       p.nombre,
+      categoria:    p.categoria,
+      unidad:       p.unidad,
+      stock_minimo: p.stock_minimo,
+      activo:       true,
     }))
     const { error } = await supabase.from('inventario').insert(rows)
     if (error) console.error('  ✗ products:', error.message)
