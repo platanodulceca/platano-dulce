@@ -95,12 +95,12 @@ export default function Caja() {
       const res = await api.post(`/caja/${register.id}/payments`, {
         method: 'efectivo_bs', amount: 0, notes: ''
       })
-      setPaymentRows(rows => [...rows, {
+      setPaymentRows(rows => [{
         id:     res.data.payment.id,
         method: 'efectivo_bs',
         amount: '',
         notes:  ''
-      }])
+      }, ...rows])
     } catch (err) {
       setError(err.response?.data?.error || 'Error al crear pago')
     }
