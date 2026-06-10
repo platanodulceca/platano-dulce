@@ -154,7 +154,7 @@ export default function Caja() {
       const res = await api.post(`/caja/${register.id}/items`, {
         nombre:   pending.dish.name,
         cantidad: pending.qty,
-        precio:   pending.dish.price_bs,
+        precio:   pending.dish.price_usd,
         costo:    pending.dish.cost_bs,
       })
       setRegister(r => ({ ...r, venta_items: [...(r.venta_items || []), res.data.item] }))
@@ -193,9 +193,9 @@ export default function Caja() {
     rateNum
   )
   const ventaItems   = register?.venta_items || []
-  const totalVentaBs = ventaItems.reduce((s, i) => s + Number(i.precio)  * Number(i.cantidad), 0)
-  const totalCost    = ventaItems.reduce((s, i) => s + Number(i.costo)   * Number(i.cantidad), 0)
-  const margin       = totalBs > 0 ? ((totalBs - totalCost) / totalBs * 100) : 0
+  const totalVentaBs = ventaItems.reduce((s, i) => s + Number(i.precio) * rateNum * Number(i.cantidad), 0)
+  const totalCostBs  = ventaItems.reduce((s, i) => s + Number(i.costo)  * rateNum * Number(i.cantidad), 0)
+  const margin       = totalBs > 0 ? ((totalBs - totalCostBs) / totalBs * 100) : 0
   const closed       = register?.estado === 'cerrado'
 
   // Menú helpers
@@ -216,7 +216,7 @@ export default function Caja() {
       <div className="page-header">
         <div>
           <h1 className="page-title">💰 Caja del Día</h1>
-          <p className="text-sm text-muted">{fmtDate(new Date().toISOString().split('T')[0])}</p>
+          <p className="text-sm text-muted">{fmtDate(register?.fecha)}</p>
         </div>
         {closed
           ? <span className="badge badge-cerrado">Cerrado</span>
@@ -357,8 +357,8 @@ export default function Caja() {
                 <tr>
                   <th>Plato</th>
                   <th style={{ textAlign: 'center' }}>Cant</th>
-                  <th style={{ textAlign: 'right' }}>Precio Bs</th>
-                  <th style={{ textAlign: 'right' }}>Costo Bs</th>
+                  <th style={{ textAlign: 'right' }}>Precio</th>
+                  <th style={{ textAlign: 'right' }}>Subtotal Bs</th>
                   {!closed && <th />}
                 </tr>
               </thead>
@@ -367,8 +367,13 @@ export default function Caja() {
                   <tr key={item.id}>
                     <td style={{ fontWeight: 600 }}>{item.nombre}</td>
                     <td style={{ textAlign: 'center' }}>{item.cantidad}</td>
-                    <td style={{ textAlign: 'right' }}>{fmtBs(Number(item.precio) * Number(item.cantidad))}</td>
-                    <td style={{ textAlign: 'right', color: 'var(--coral)' }}>{fmtBs(Number(item.costo) * Number(item.cantidad))}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: 700 }}>{fmtUsd(item.precio)}</div>
+                      {rateNum > 0 && <div className="text-xs text-muted">{fmtBs(Number(item.precio) * rateNum)}</div>}
+                    </td>
+                    <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                      {rateNum > 0 ? fmtBs(Number(item.precio) * rateNum * Number(item.cantidad)) : '—'}
+                    </td>
                     {!closed && (
                       <td><button className="btn btn-danger btn-sm btn-icon" onClick={() => removeItem(item.id)}>✕</button></td>
                     )}
@@ -377,9 +382,10 @@ export default function Caja() {
               </tbody>
               <tfoot>
                 <tr style={{ background: 'var(--gray-50)' }}>
-                  <td colSpan={2} style={{ fontWeight: 700, paddingLeft: '.75rem' }}>Total platos</td>
-                  <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmtBs(totalVentaBs)}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--coral)' }}>{fmtBs(totalCost)}</td>
+                  <td colSpan={3} style={{ fontWeight: 700, paddingLeft: '.75rem' }}>Total platos</td>
+                  <td style={{ textAlign: 'right', fontWeight: 700 }}>
+                    {rateNum > 0 ? fmtBs(totalVentaBs) : '—'}
+                  </td>
                   {!closed && <td />}
                 </tr>
               </tfoot>
@@ -478,7 +484,10 @@ export default function Caja() {
                 </div>
                 <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
                   <span className="text-sm text-muted" style={{ flex: 1 }}>
-                    {fmtBs(pending.dish.price_bs)} × {pending.qty} = <strong>{fmtBs(pending.dish.price_bs * pending.qty)}</strong>
+                    {fmtUsd(pending.dish.price_usd)}
+                    {rateNum > 0 && <span> ({fmtBs(pending.dish.price_usd * rateNum)})</span>}
+                    {' '}× {pending.qty} = <strong>{fmtUsd(pending.dish.price_usd * pending.qty)}</strong>
+                    {rateNum > 0 && <strong> ({fmtBs(pending.dish.price_usd * rateNum * pending.qty)})</strong>}
                   </span>
                   <button className="btn btn-sm btn-secondary" style={{ width: 32, padding: 0 }}
                     onClick={() => setPending(p => ({ ...p, qty: Math.max(1, p.qty - 1) }))}>−</button>
@@ -627,7 +636,7 @@ function DishRow({ dish, selected, onSelect }) {
         {dish.name}
       </div>
       <div style={{ fontWeight: 700, color: 'var(--orange)', flexShrink: 0 }}>
-        {fmtBs(dish.price_bs)}
+        {fmtUsd(dish.price_usd)}
       </div>
       <span style={{ color: selected ? 'var(--orange)' : 'var(--gray-300)', fontSize: '1.1rem', flexShrink: 0 }}>
         {selected ? '✓' : '+'}
