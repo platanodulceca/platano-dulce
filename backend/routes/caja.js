@@ -72,15 +72,17 @@ router.put('/:id/rate', async (req, res) => {
 router.post('/:id/payments', async (req, res) => {
   const { method, amount, notes } = req.body
   const moneda = PAYMENT_CURRENCIES[method] || 'bs'
+  const insertPayload = {
+    caja_id:    req.params.id,
+    metodo:     method,
+    monto:      parseFloat(amount) || 0,
+    moneda,
+    referencia: notes || null
+  }
+  console.log('[caja_pagos INSERT] method recibido:', JSON.stringify(method), '| payload completo:', JSON.stringify(insertPayload))
   const { data, error } = await supabase
     .from('caja_pagos')
-    .insert({
-      caja_id:    req.params.id,
-      metodo:     method,
-      monto:      parseFloat(amount) || 0,
-      moneda,
-      referencia: notes || null
-    })
+    .insert(insertPayload)
     .select().single()
   if (error) return res.status(500).json({ error: error.message })
   res.status(201).json({ payment: data })
