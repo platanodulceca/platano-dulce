@@ -10,7 +10,7 @@ router.get('/active', async (req, res) => {
   const activeStatuses = ['pendiente', 'en_preparacion', 'lista']
   const { data, error } = await supabase
     .from('ordenes')
-    .select('*, order_items(*)')
+    .select('*, orden_items(*)')
     .in('status', activeStatuses)
     .order('created_at', { ascending: true })
 
@@ -22,7 +22,7 @@ router.get('/active', async (req, res) => {
 router.get('/mine', async (req, res) => {
   const { data, error } = await supabase
     .from('ordenes')
-    .select('*, order_items(*)')
+    .select('*, orden_items(*)')
     .eq('waiter_id', req.user.id)
     .not('status', 'in', '("cobrada","cancelada")')
     .order('created_at', { ascending: false })
@@ -35,7 +35,7 @@ router.get('/mine', async (req, res) => {
 router.get('/to-collect', async (req, res) => {
   const { data, error } = await supabase
     .from('ordenes')
-    .select('*, order_items(*)')
+    .select('*, orden_items(*)')
     .in('status', ['lista', 'entregada'])
     .order('ready_at', { ascending: true })
 
@@ -47,7 +47,7 @@ router.get('/to-collect', async (req, res) => {
 router.get('/:id', async (req, res) => {
   const { data, error } = await supabase
     .from('ordenes')
-    .select('*, order_items(*)')
+    .select('*, orden_items(*)')
     .eq('id', req.params.id)
     .single()
 
@@ -89,7 +89,7 @@ router.post('/', async (req, res) => {
       notes,
       status: 'borrador'
     })
-    .select('*, order_items(*)')
+    .select('*, orden_items(*)')
     .single()
 
   if (error) return res.status(500).json({ error: error.message })
@@ -166,19 +166,19 @@ router.delete('/:id/items/:itemId', async (req, res) => {
 router.put('/:id/send', async (req, res) => {
   const { data: order } = await supabase
     .from('ordenes')
-    .select('*, order_items(*)')
+    .select('*, orden_items(*)')
     .eq('id', req.params.id)
     .single()
 
   if (!order) return res.status(404).json({ error: 'Orden no encontrada' })
   if (order.status !== 'borrador') return res.status(400).json({ error: 'La orden ya fue enviada' })
-  if (!order.order_items?.length) return res.status(400).json({ error: 'La orden no tiene ítems' })
+  if (!order.orden_items?.length) return res.status(400).json({ error: 'La orden no tiene ítems' })
 
   const { data, error } = await supabase
     .from('ordenes')
     .update({ status: 'pendiente', sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
     .eq('id', req.params.id)
-    .select('*, order_items(*)').single()
+    .select('*, orden_items(*)').single()
 
   if (error) return res.status(500).json({ error: error.message })
 
@@ -211,7 +211,7 @@ router.put('/:id/items/:itemId/status', requireRoles('admin','chef','dueno'), as
   // Obtener orden actualizada
   const { data: updatedOrder } = await supabase
     .from('ordenes')
-    .select('*, order_items(*)')
+    .select('*, orden_items(*)')
     .eq('id', req.params.id)
     .single()
 
@@ -230,7 +230,7 @@ router.put('/:id/deliver', async (req, res) => {
     .from('ordenes')
     .update({ status: 'entregada', delivered_at: new Date().toISOString(), updated_at: new Date().toISOString() })
     .eq('id', req.params.id)
-    .select('*, order_items(*)').single()
+    .select('*, orden_items(*)').single()
 
   if (error) return res.status(500).json({ error: error.message })
   res.json({ order: data })
@@ -240,7 +240,7 @@ router.put('/:id/deliver', async (req, res) => {
 router.put('/:id/cobrar', requireRoles('admin','cajero','dueno'), async (req, res) => {
   const { data: order } = await supabase
     .from('ordenes')
-    .select('*, order_items(*)')
+    .select('*, orden_items(*)')
     .eq('id', req.params.id)
     .single()
 
@@ -265,9 +265,9 @@ router.put('/:id/cobrar', requireRoles('admin','cajero','dueno'), async (req, re
     register = newReg
   }
 
-  // Insertar ítems en sales_items
-  if (order.order_items?.length) {
-    const salesItems = order.order_items.map(item => ({
+  // Insertar ítems en venta_items
+  if (order.orden_items?.length) {
+    const salesItems = order.orden_items.map(item => ({
       register_id: register.id,
       dish_id: item.dish_id,
       dish_name: item.dish_name,
@@ -276,7 +276,7 @@ router.put('/:id/cobrar', requireRoles('admin','cajero','dueno'), async (req, re
       price_bs: item.price_bs,
       cost_bs: item.cost_bs
     }))
-    await supabase.from('sales_items').insert(salesItems)
+    await supabase.from('venta_items').insert(salesItems)
   }
 
   // Marcar orden como cobrada
@@ -289,7 +289,7 @@ router.put('/:id/cobrar', requireRoles('admin','cajero','dueno'), async (req, re
       updated_at: new Date().toISOString()
     })
     .eq('id', req.params.id)
-    .select('*, order_items(*)').single()
+    .select('*, orden_items(*)').single()
 
   if (error) return res.status(500).json({ error: error.message })
 

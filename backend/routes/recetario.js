@@ -28,7 +28,7 @@ router.get('/', async (req, res) => {
   if (error) return res.status(500).json({ error: error.message })
 
   const { data: ingredients } = await supabase
-    .from('recipe_ingredients')
+    .from('receta_ingredientes')
     .select('*, inventario(id, name, unit)')
 
   const dishes = rows.map(d => ({
@@ -69,7 +69,7 @@ router.post('/ingredients', requireRoles('admin', 'chef', 'dueno'), async (req, 
   const { dish_id, product_id, quantity_per_portion } = req.body
 
   const { data: existing } = await supabase
-    .from('recipe_ingredients')
+    .from('receta_ingredientes')
     .select('id')
     .eq('dish_id', dish_id)
     .eq('product_id', product_id)
@@ -78,13 +78,13 @@ router.post('/ingredients', requireRoles('admin', 'chef', 'dueno'), async (req, 
   let data, error
   if (existing) {
     ;({ data, error } = await supabase
-      .from('recipe_ingredients')
+      .from('receta_ingredientes')
       .update({ quantity_per_portion })
       .eq('id', existing.id)
       .select('*, inventario(id, name, unit)').single())
   } else {
     ;({ data, error } = await supabase
-      .from('recipe_ingredients')
+      .from('receta_ingredientes')
       .insert({ dish_id, product_id, quantity_per_portion })
       .select('*, inventario(id, name, unit)').single())
   }
@@ -96,7 +96,7 @@ router.post('/ingredients', requireRoles('admin', 'chef', 'dueno'), async (req, 
 // Eliminar ingrediente de receta
 router.delete('/ingredients/:id', requireRoles('admin', 'chef', 'dueno'), async (req, res) => {
   const { error } = await supabase
-    .from('recipe_ingredients')
+    .from('receta_ingredientes')
     .delete()
     .eq('id', req.params.id)
 

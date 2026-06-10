@@ -19,8 +19,8 @@ router.get('/current', async (req, res) => {
   const we = weekEnd.toISOString().split('T')[0]
 
   const { data: list } = await supabase
-    .from('shopping_lists')
-    .select('*, shopping_list_items(*)')
+    .from('listas_compras')
+    .select('*, listas_compras_items(*)')
     .eq('week_start', ws)
     .single()
 
@@ -59,7 +59,7 @@ router.post('/generate', requireRoles('admin', 'chef', 'dueno'), async (req, res
   if (registers?.length) {
     const registerIds = registers.map(r => r.id)
     const { data: salesItems } = await supabase
-      .from('sales_items')
+      .from('venta_items')
       .select('dish_id, quantity')
       .in('register_id', registerIds)
       .not('dish_id', 'is', null)
@@ -67,7 +67,7 @@ router.post('/generate', requireRoles('admin', 'chef', 'dueno'), async (req, res
     if (salesItems?.length) {
       const dishIds = [...new Set(salesItems.map(s => s.dish_id))]
       const { data: recipes } = await supabase
-        .from('recipe_ingredients')
+        .from('receta_ingredientes')
         .select('dish_id, product_id, quantity_per_portion')
         .in('dish_id', dishIds)
 
@@ -106,37 +106,37 @@ router.post('/generate', requireRoles('admin', 'chef', 'dueno'), async (req, res
 
   // Crear o reemplazar lista
   const { data: existingList } = await supabase
-    .from('shopping_lists')
+    .from('listas_compras')
     .select('id')
     .eq('week_start', ws)
     .single()
 
   if (existingList) {
-    await supabase.from('shopping_list_items').delete().eq('list_id', existingList.id)
-    await supabase.from('shopping_list_items')
+    await supabase.from('listas_compras_items').delete().eq('list_id', existingList.id)
+    await supabase.from('listas_compras_items')
       .insert(itemsNeeded.map(i => ({ ...i, list_id: existingList.id })))
 
     const { data: updatedList } = await supabase
-      .from('shopping_lists')
-      .select('*, shopping_list_items(*)')
+      .from('listas_compras')
+      .select('*, listas_compras_items(*)')
       .eq('id', existingList.id).single()
 
     return res.json({ list: updatedList })
   }
 
   const { data: newList, error } = await supabase
-    .from('shopping_lists')
+    .from('listas_compras')
     .insert({ week_start: ws, week_end: we, created_by: req.user.id })
     .select().single()
 
   if (error) return res.status(500).json({ error: error.message })
 
-  await supabase.from('shopping_list_items')
+  await supabase.from('listas_compras_items')
     .insert(itemsNeeded.map(i => ({ ...i, list_id: newList.id })))
 
   const { data: finalList } = await supabase
-    .from('shopping_lists')
-    .select('*, shopping_list_items(*)')
+    .from('listas_compras')
+    .select('*, listas_compras_items(*)')
     .eq('id', newList.id).single()
 
   res.status(201).json({ list: finalList })
@@ -146,7 +146,7 @@ router.post('/generate', requireRoles('admin', 'chef', 'dueno'), async (req, res
 router.put('/items/:id', async (req, res) => {
   const { purchased, notes } = req.body
   const { data, error } = await supabase
-    .from('shopping_list_items')
+    .from('listas_compras_items')
     .update({ purchased, notes })
     .eq('id', req.params.id)
     .select().single()

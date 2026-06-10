@@ -8,7 +8,7 @@ router.use(requireAuth)
 router.get('/', async (req, res) => {
   const { status } = req.query
   let query = supabase
-    .from('accounts_receivable')
+    .from('cuentas_cobrar')
     .select('*')
     .order('date', { ascending: false })
 
@@ -32,7 +32,7 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   const { client_name, client_phone, amount_bs, amount_usd, date, due_date, notes, register_id } = req.body
   const { data, error } = await supabase
-    .from('accounts_receivable')
+    .from('cuentas_cobrar')
     .insert({ client_name, client_phone, amount_bs, amount_usd, date, due_date, notes, register_id })
     .select().single()
 
@@ -50,7 +50,7 @@ router.put('/:id', async (req, res) => {
   if (status === 'pagado' && !paid_date) updates.paid_date = new Date().toISOString().split('T')[0]
 
   const { data, error } = await supabase
-    .from('accounts_receivable')
+    .from('cuentas_cobrar')
     .update(updates)
     .eq('id', req.params.id)
     .select().single()
@@ -61,7 +61,7 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   const { error } = await supabase
-    .from('accounts_receivable')
+    .from('cuentas_cobrar')
     .delete()
     .eq('id', req.params.id)
 

@@ -24,7 +24,7 @@ router.get('/today', async (req, res) => {
 
   let { data: register } = await supabase
     .from('caja_registros')
-    .select('*, caja_pagos(*), sales_items(*)')
+    .select('*, caja_pagos(*), venta_items(*)')
     .eq('date', today)
     .single()
 
@@ -32,7 +32,7 @@ router.get('/today', async (req, res) => {
     const { data: newReg, error } = await supabase
       .from('caja_registros')
       .insert({ date: today, exchange_rate_bcv: 0, created_by: req.user.id })
-      .select('*, caja_pagos(*), sales_items(*)')
+      .select('*, caja_pagos(*), venta_items(*)')
       .single()
 
     if (error) return res.status(500).json({ error: error.message })
@@ -46,7 +46,7 @@ router.get('/today', async (req, res) => {
 router.get('/date/:date', async (req, res) => {
   const { data: register, error } = await supabase
     .from('caja_registros')
-    .select('*, caja_pagos(*), sales_items(*)')
+    .select('*, caja_pagos(*), venta_items(*)')
     .eq('date', req.params.date)
     .single()
 
@@ -115,7 +115,7 @@ router.delete('/:id/payments/:paymentId', async (req, res) => {
 router.post('/:id/items', async (req, res) => {
   const { dish_id, dish_name, item_type, quantity, price_bs, price_usd, cost_bs } = req.body
   const { data, error } = await supabase
-    .from('sales_items')
+    .from('venta_items')
     .insert({
       register_id: req.params.id,
       dish_id, dish_name, item_type,
@@ -132,7 +132,7 @@ router.post('/:id/items', async (req, res) => {
 // Eliminar artículo vendido
 router.delete('/:id/items/:itemId', async (req, res) => {
   const { error } = await supabase
-    .from('sales_items')
+    .from('venta_items')
     .delete()
     .eq('id', req.params.itemId)
     .eq('register_id', req.params.id)
@@ -153,7 +153,7 @@ router.put('/:id/close', requireRoles('admin', 'cajero', 'dueno'), async (req, r
       closed_at: new Date().toISOString()
     })
     .eq('id', req.params.id)
-    .select('*, caja_pagos(*), sales_items(*)')
+    .select('*, caja_pagos(*), venta_items(*)')
     .single()
 
   if (error) return res.status(500).json({ error: error.message })

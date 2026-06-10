@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
   email       VARCHAR(255) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
   name        VARCHAR(255) NOT NULL,
-  role        VARCHAR(50) NOT NULL CHECK (role IN ('administrador','cajero','chef','dueño','mesero')),
+  rol         VARCHAR(50) NOT NULL CHECK (rol IN ('admin','cajero','chef','dueno','mesero')),
   active      BOOLEAN DEFAULT true,
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
@@ -170,6 +170,132 @@ CREATE TABLE IF NOT EXISTS caja_pagos (
 
 CREATE INDEX IF NOT EXISTS idx_caja_pagos_caja     ON caja_pagos(caja_id);
 CREATE INDEX IF NOT EXISTS idx_menu_items_categoria ON menu_items(categoria);
+
+-- ─── ÓRDENES ────────────────────────────────────────────────
+-- Requiere: mesas, users, caja_registros (ya existen en Supabase)
+CREATE TABLE IF NOT EXISTS ordenes (
+  id            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  table_id      UUID REFERENCES mesas(id),
+  table_number  INTEGER,
+  table_name    VARCHAR(255),
+  waiter_id     UUID NOT NULL REFERENCES users(id),
+  waiter_name   VARCHAR(255),
+  status        VARCHAR(20) NOT NULL DEFAULT 'borrador'
+                  CHECK (status IN ('borrador','pendiente','en_preparacion','lista','entregada','cobrada','cancelada')),
+  notes         TEXT,
+  total_bs      NUMERIC(10,2) DEFAULT 0,
+  sent_at       TIMESTAMPTZ,
+  ready_at      TIMESTAMPTZ,
+  delivered_at  TIMESTAMPTZ,
+  cobrado_at    TIMESTAMPTZ,
+  register_id   UUID REFERENCES caja_registros(id),
+  split_count   INTEGER DEFAULT 1,
+  created_at    TIMESTAMPTZ DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS orden_items (
+  id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  order_id    UUID NOT NULL REFERENCES ordenes(id) ON DELETE CASCADE,
+  dish_id     UUID REFERENCES menu_items(id),
+  dish_name   VARCHAR(255) NOT NULL,
+  item_type   VARCHAR(20) DEFAULT 'plato',
+  quantity    INTEGER NOT NULL DEFAULT 1,
+  price_bs    NUMERIC(10,2) DEFAULT 0,
+  cost_bs     NUMERIC(10,2) DEFAULT 0,
+  notes       TEXT,
+  status      VARCHAR(20) DEFAULT 'pendiente'
+                CHECK (status IN ('pendiente','en_preparacion','listo','entregado','cancelado')),
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ─── ARTÍCULOS VENDIDOS POR CAJA ────────────────────────────
+CREATE TABLE IF NOT EXISTS venta_items (
+  id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  register_id UUID NOT NULL REFERENCES caja_registros(id) ON DELETE CASCADE,
+  dish_id     UUID REFERENCES menu_items(id),
+  dish_name   VARCHAR(255) NOT NULL,
+  item_type   VARCHAR(20) DEFAULT 'plato',
+  quantity    INTEGER NOT NULL DEFAULT 1,
+  price_bs    NUMERIC(10,2) DEFAULT 0,
+  price_usd   NUMERIC(10,4) DEFAULT 0,
+  cost_bs     NUMERIC(10,2) DEFAULT 0,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ─── CUENTAS POR COBRAR ─────────────────────────────────────
+CREATE TABLE IF NOT EXISTS cuentas_cobrar (
+  id           UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  client_name  VARCHAR(255) NOT NULL,
+  client_phone VARCHAR(50),
+  amount_bs    NUMERIC(10,2) NOT NULL DEFAULT 0,
+  amount_usd   NUMERIC(10,4) DEFAULT 0,
+  date         DATE NOT NULL DEFAULT CURRENT_DATE,
+  due_date     DATE,
+  status       VARCHAR(20) NOT NULL DEFAULT 'pendiente'
+                 CHECK (status IN ('pendiente','pagado','vencido')),
+  register_id  UUID REFERENCES caja_registros(id),
+  notes        TEXT,
+  paid_date    DATE,
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ─── RECETARIO ──────────────────────────────────────────────
+-- Requiere: menu_items, inventario
+CREATE TABLE IF NOT EXISTS receta_ingredientes (
+  id                   UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  dish_id              UUID NOT NULL REFERENCES menu_items(id) ON DELETE CASCADE,
+  product_id           UUID NOT NULL REFERENCES inventario(id) ON DELETE CASCADE,
+  quantity_per_portion NUMERIC(10,4) NOT NULL,
+  UNIQUE(dish_id, product_id)
+);
+
+-- ─── LISTAS DE COMPRAS ──────────────────────────────────────
+CREATE TABLE IF NOT EXISTS listas_compras (
+  id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  week_start  DATE NOT NULL,
+  week_end    DATE NOT NULL,
+  status      VARCHAR(20) DEFAULT 'pendiente' CHECK (status IN ('pendiente','completada')),
+  created_by  UUID REFERENCES users(id),
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS listas_compras_items (
+  id               UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  list_id          UUID NOT NULL REFERENCES listas_compras(id) ON DELETE CASCADE,
+  product_id       UUID REFERENCES inventario(id),
+  product_name     VARCHAR(255) NOT NULL,
+  category         VARCHAR(100) NOT NULL,
+  quantity_needed  NUMERIC(10,3) NOT NULL DEFAULT 0,
+  unit             VARCHAR(50) NOT NULL,
+  estimated_cost   NUMERIC(10,2),
+  purchased        BOOLEAN DEFAULT false,
+  notes            TEXT
+);
+
+-- ─── CONTEOS DE INVENTARIO ──────────────────────────────────
+CREATE TABLE IF NOT EXISTS conteos_inventario (
+  id             UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  date           DATE NOT NULL,
+  product_id     UUID NOT NULL REFERENCES inventario(id) ON DELETE CASCADE,
+  physical_count NUMERIC(10,3) NOT NULL DEFAULT 0,
+  counted_by     UUID REFERENCES users(id),
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(date, product_id)
+);
+
+-- ─── ÍNDICES NUEVAS TABLAS ──────────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_ordenes_status        ON ordenes(status);
+CREATE INDEX IF NOT EXISTS idx_ordenes_waiter        ON ordenes(waiter_id);
+CREATE INDEX IF NOT EXISTS idx_orden_items_order     ON orden_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_venta_items_register  ON venta_items(register_id);
+CREATE INDEX IF NOT EXISTS idx_venta_items_dish      ON venta_items(dish_id);
+CREATE INDEX IF NOT EXISTS idx_cuentas_status        ON cuentas_cobrar(status);
+CREATE INDEX IF NOT EXISTS idx_receta_dish           ON receta_ingredientes(dish_id);
+CREATE INDEX IF NOT EXISTS idx_listas_compras_status ON listas_compras(status);
+CREATE INDEX IF NOT EXISTS idx_conteos_date          ON conteos_inventario(date);
+CREATE INDEX IF NOT EXISTS idx_conteos_product       ON conteos_inventario(product_id);
 
 -- ─── ÍNDICES ────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_daily_registers_date      ON daily_registers(date);

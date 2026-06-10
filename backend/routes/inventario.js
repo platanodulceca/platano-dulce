@@ -56,7 +56,7 @@ router.get('/today', async (req, res) => {
     .order('category').order('name')
 
   const { data: counts } = await supabase
-    .from('inventory_counts')
+    .from('conteos_inventario')
     .select('*')
     .eq('date', today)
 
@@ -73,7 +73,7 @@ router.get('/today', async (req, res) => {
   const theoreticalConsumption = {}
   if (todayRegister) {
     const { data: salesItems } = await supabase
-      .from('sales_items')
+      .from('venta_items')
       .select('dish_id, quantity')
       .eq('register_id', todayRegister.id)
       .not('dish_id', 'is', null)
@@ -81,7 +81,7 @@ router.get('/today', async (req, res) => {
     if (salesItems?.length) {
       const dishIds = [...new Set(salesItems.map(s => s.dish_id))]
       const { data: recipes } = await supabase
-        .from('recipe_ingredients')
+        .from('receta_ingredientes')
         .select('dish_id, product_id, quantity_per_portion')
         .in('dish_id', dishIds)
 
@@ -123,7 +123,7 @@ router.post('/count', async (req, res) => {
   const countDate = date || new Date().toISOString().split('T')[0]
 
   const { data: existing } = await supabase
-    .from('inventory_counts')
+    .from('conteos_inventario')
     .select('id')
     .eq('date', countDate)
     .eq('product_id', product_id)
@@ -132,13 +132,13 @@ router.post('/count', async (req, res) => {
   let data, error
   if (existing) {
     ;({ data, error } = await supabase
-      .from('inventory_counts')
+      .from('conteos_inventario')
       .update({ physical_count, counted_by: req.user.id })
       .eq('id', existing.id)
       .select().single())
   } else {
     ;({ data, error } = await supabase
-      .from('inventory_counts')
+      .from('conteos_inventario')
       .insert({ date: countDate, product_id, physical_count, counted_by: req.user.id })
       .select().single())
   }

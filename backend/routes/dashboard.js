@@ -10,12 +10,12 @@ router.get('/summary', async (req, res) => {
 
   const { data: register } = await supabase
     .from('caja_registros')
-    .select('*, caja_pagos(*), sales_items(*)')
+    .select('*, caja_pagos(*), venta_items(*)')
     .eq('date', today)
     .single()
 
   const { data: pendingAccounts } = await supabase
-    .from('accounts_receivable')
+    .from('cuentas_cobrar')
     .select('id, amount_bs, client_name')
     .eq('status', 'pendiente')
 
@@ -42,13 +42,13 @@ router.get('/summary', async (req, res) => {
     totalUsd = rate > 0 ? totalBs / rate : 0
   }
 
-  if (register?.sales_items) {
-    register.sales_items.forEach(i => {
+  if (register?.venta_items) {
+    register.venta_items.forEach(i => {
       totalCost += Number(i.cost_bs) * i.quantity
     })
   }
 
-  const totalItems = register?.sales_items?.reduce((s, i) => s + i.quantity, 0) || 0
+  const totalItems = register?.venta_items?.reduce((s, i) => s + i.quantity, 0) || 0
   const avgTicket = totalItems > 0 ? totalBs / totalItems : 0
   const margin = totalBs > 0 ? ((totalBs - totalCost) / totalBs) * 100 : 0
 
@@ -83,7 +83,7 @@ router.get('/top-dishes', async (req, res) => {
   if (!registers?.length) return res.json({ dishes: [] })
 
   const { data: items } = await supabase
-    .from('sales_items')
+    .from('venta_items')
     .select('dish_name, item_type, quantity, price_bs')
     .in('register_id', registers.map(r => r.id))
 
@@ -108,7 +108,7 @@ router.get('/historial', async (req, res) => {
   const { limit = 30 } = req.query
   const { data, error } = await supabase
     .from('caja_registros')
-    .select('*, caja_pagos(*), sales_items(id, dish_name, quantity, price_bs, cost_bs)')
+    .select('*, caja_pagos(*), venta_items(id, dish_name, quantity, price_bs, cost_bs)')
     .eq('status', 'cerrado')
     .order('date', { ascending: false })
     .limit(Number(limit))
