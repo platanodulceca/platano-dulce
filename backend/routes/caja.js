@@ -23,16 +23,16 @@ router.get('/today', async (req, res) => {
   const today = new Date().toISOString().split('T')[0]
 
   let { data: register } = await supabase
-    .from('daily_registers')
-    .select('*, daily_payments(*), sales_items(*)')
+    .from('caja_registros')
+    .select('*, caja_pagos(*), sales_items(*)')
     .eq('date', today)
     .single()
 
   if (!register) {
     const { data: newReg, error } = await supabase
-      .from('daily_registers')
+      .from('caja_registros')
       .insert({ date: today, exchange_rate_bcv: 0, created_by: req.user.id })
-      .select('*, daily_payments(*), sales_items(*)')
+      .select('*, caja_pagos(*), sales_items(*)')
       .single()
 
     if (error) return res.status(500).json({ error: error.message })
@@ -45,8 +45,8 @@ router.get('/today', async (req, res) => {
 // Obtener registro por fecha específica
 router.get('/date/:date', async (req, res) => {
   const { data: register, error } = await supabase
-    .from('daily_registers')
-    .select('*, daily_payments(*), sales_items(*)')
+    .from('caja_registros')
+    .select('*, caja_pagos(*), sales_items(*)')
     .eq('date', req.params.date)
     .single()
 
@@ -58,7 +58,7 @@ router.get('/date/:date', async (req, res) => {
 router.put('/:id/rate', async (req, res) => {
   const { exchange_rate_bcv } = req.body
   const { data, error } = await supabase
-    .from('daily_registers')
+    .from('caja_registros')
     .update({ exchange_rate_bcv })
     .eq('id', req.params.id)
     .select()
@@ -71,15 +71,15 @@ router.put('/:id/rate', async (req, res) => {
 // Crear nueva fila de pago
 router.post('/:id/payments', async (req, res) => {
   const { method, amount, notes } = req.body
-  const currency = PAYMENT_CURRENCIES[method] || 'bs'
+  const moneda = PAYMENT_CURRENCIES[method] || 'bs'
   const { data, error } = await supabase
-    .from('daily_payments')
+    .from('caja_pagos')
     .insert({
-      register_id: req.params.id,
-      method,
-      amount: parseFloat(amount) || 0,
-      currency,
-      notes: notes || null
+      caja_id:    req.params.id,
+      metodo:     method,
+      monto:      parseFloat(amount) || 0,
+      moneda,
+      referencia: notes || null
     })
     .select().single()
   if (error) return res.status(500).json({ error: error.message })
@@ -89,12 +89,12 @@ router.post('/:id/payments', async (req, res) => {
 // Actualizar fila de pago por ID
 router.put('/:id/payments/:paymentId', async (req, res) => {
   const { method, amount, notes } = req.body
-  const currency = PAYMENT_CURRENCIES[method] || 'bs'
+  const moneda = PAYMENT_CURRENCIES[method] || 'bs'
   const { data, error } = await supabase
-    .from('daily_payments')
-    .update({ method, amount: parseFloat(amount) || 0, currency, notes: notes || null })
+    .from('caja_pagos')
+    .update({ metodo: method, monto: parseFloat(amount) || 0, moneda, referencia: notes || null })
     .eq('id', req.params.paymentId)
-    .eq('register_id', req.params.id)
+    .eq('caja_id', req.params.id)
     .select().single()
   if (error) return res.status(500).json({ error: error.message })
   res.json({ payment: data })
@@ -103,10 +103,10 @@ router.put('/:id/payments/:paymentId', async (req, res) => {
 // Eliminar fila de pago
 router.delete('/:id/payments/:paymentId', async (req, res) => {
   const { error } = await supabase
-    .from('daily_payments')
+    .from('caja_pagos')
     .delete()
     .eq('id', req.params.paymentId)
-    .eq('register_id', req.params.id)
+    .eq('caja_id', req.params.id)
   if (error) return res.status(500).json({ error: error.message })
   res.json({ message: 'Pago eliminado' })
 })
@@ -145,7 +145,7 @@ router.delete('/:id/items/:itemId', async (req, res) => {
 router.put('/:id/close', requireRoles('admin', 'cajero', 'dueno'), async (req, res) => {
   const { notes } = req.body
   const { data, error } = await supabase
-    .from('daily_registers')
+    .from('caja_registros')
     .update({
       status: 'cerrado',
       notes,
@@ -153,7 +153,7 @@ router.put('/:id/close', requireRoles('admin', 'cajero', 'dueno'), async (req, r
       closed_at: new Date().toISOString()
     })
     .eq('id', req.params.id)
-    .select('*, daily_payments(*), sales_items(*)')
+    .select('*, caja_pagos(*), sales_items(*)')
     .single()
 
   if (error) return res.status(500).json({ error: error.message })

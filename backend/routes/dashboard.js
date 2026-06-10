@@ -9,8 +9,8 @@ router.get('/summary', async (req, res) => {
   const today = new Date().toISOString().split('T')[0]
 
   const { data: register } = await supabase
-    .from('daily_registers')
-    .select('*, daily_payments(*), sales_items(*)')
+    .from('caja_registros')
+    .select('*, caja_pagos(*), sales_items(*)')
     .eq('date', today)
     .single()
 
@@ -20,7 +20,7 @@ router.get('/summary', async (req, res) => {
     .eq('status', 'pendiente')
 
   const { data: allProducts } = await supabase
-    .from('products')
+    .from('inventario')
     .select('id, name, current_stock, minimum_stock, unit')
     .eq('active', true)
   const alertProducts = allProducts?.filter(p => Number(p.current_stock) <= Number(p.minimum_stock)) || []
@@ -30,13 +30,13 @@ router.get('/summary', async (req, res) => {
   let totalCost = 0
   const rate = register?.exchange_rate_bcv || 1
 
-  if (register?.daily_payments) {
-    register.daily_payments.forEach(p => {
-      if (p.currency === 'bs') {
-        totalBs += Number(p.amount)
+  if (register?.caja_pagos) {
+    register.caja_pagos.forEach(p => {
+      if (p.moneda === 'bs') {
+        totalBs += Number(p.monto)
       } else {
-        totalUsd += Number(p.amount)
-        totalBs += Number(p.amount) * rate
+        totalUsd += Number(p.monto)
+        totalBs += Number(p.monto) * rate
       }
     })
     totalUsd = rate > 0 ? totalBs / rate : 0
@@ -76,7 +76,7 @@ router.get('/top-dishes', async (req, res) => {
   const sinceStr = since.toISOString().split('T')[0]
 
   const { data: registers } = await supabase
-    .from('daily_registers')
+    .from('caja_registros')
     .select('id')
     .gte('date', sinceStr)
 
@@ -107,8 +107,8 @@ router.get('/top-dishes', async (req, res) => {
 router.get('/historial', async (req, res) => {
   const { limit = 30 } = req.query
   const { data, error } = await supabase
-    .from('daily_registers')
-    .select('*, daily_payments(*), sales_items(id, dish_name, quantity, price_bs, cost_bs)')
+    .from('caja_registros')
+    .select('*, caja_pagos(*), sales_items(id, dish_name, quantity, price_bs, cost_bs)')
     .eq('status', 'cerrado')
     .order('date', { ascending: false })
     .limit(Number(limit))

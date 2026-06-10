@@ -139,6 +139,38 @@ CREATE TABLE IF NOT EXISTS accounts_receivable (
   created_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ─── TABLAS NUEVAS (español) ────────────────────────────────
+
+-- Menú del restaurante (reemplaza dishes)
+CREATE TABLE IF NOT EXISTS menu_items (
+  id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  nombre     VARCHAR(255) NOT NULL,
+  categoria  VARCHAR(50) NOT NULL,
+  precio     NUMERIC(10,2) NOT NULL DEFAULT 0,
+  precio_usd NUMERIC(10,4) DEFAULT 0,
+  costo      NUMERIC(10,2) DEFAULT 0,
+  activo     BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Pagos individuales de caja (reemplaza daily_payments)
+-- Requiere que exista la tabla caja_registros
+CREATE TABLE IF NOT EXISTS caja_pagos (
+  id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  caja_id    UUID NOT NULL REFERENCES caja_registros(id) ON DELETE CASCADE,
+  metodo     VARCHAR(50) NOT NULL CHECK (metodo IN (
+               'efectivo_bs','efectivo_usd','pago_movil','punto_venta',
+               'zelle','transferencia','delivery','propina','vuelto','credito_fiado'
+             )),
+  monto      NUMERIC(10,2) NOT NULL DEFAULT 0,
+  moneda     VARCHAR(5) NOT NULL DEFAULT 'bs' CHECK (moneda IN ('bs','usd')),
+  referencia TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_caja_pagos_caja     ON caja_pagos(caja_id);
+CREATE INDEX IF NOT EXISTS idx_menu_items_categoria ON menu_items(categoria);
+
 -- ─── ÍNDICES ────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_daily_registers_date      ON daily_registers(date);
 CREATE INDEX IF NOT EXISTS idx_daily_payments_register   ON daily_payments(register_id);

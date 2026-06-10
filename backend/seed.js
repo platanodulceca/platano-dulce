@@ -21,51 +21,49 @@ const usuarios = [
 ]
 
 // ── Menú — Plátano Dulce C.A. ─────────────────────────────────
-// price_usd: precio de venta en dólares
-// price_bs:  precio en bolívares (aprox. rate 36 Bs/$)
-// cost_bs:   costo de producción (~35% del precio en Bs)
+// Columnas de menu_items: nombre, categoria, precio (Bs), precio_usd, costo
 const RATE = 36
 const platos = [
   // Pasapalos / Entradas
-  { name: 'Tequeños (6 uds)',          category: 'pasapalos', price_usd: 3.50, price_bs: 3.50 * RATE, cost_bs: 3.50 * RATE * 0.30 },
-  { name: 'Empanada de Queso',         category: 'pasapalos', price_usd: 2.00, price_bs: 2.00 * RATE, cost_bs: 2.00 * RATE * 0.30 },
-  { name: 'Empanada de Carne',         category: 'pasapalos', price_usd: 2.50, price_bs: 2.50 * RATE, cost_bs: 2.50 * RATE * 0.35 },
-  { name: 'Tostones con Guasacaca',    category: 'pasapalos', price_usd: 3.00, price_bs: 3.00 * RATE, cost_bs: 3.00 * RATE * 0.28 },
+  { nombre: 'Tequeños (6 uds)',          categoria: 'pasapalos',   precio_usd: 3.50, precio: 3.50 * RATE, costo: 3.50 * RATE * 0.30 },
+  { nombre: 'Empanada de Queso',         categoria: 'pasapalos',   precio_usd: 2.00, precio: 2.00 * RATE, costo: 2.00 * RATE * 0.30 },
+  { nombre: 'Empanada de Carne',         categoria: 'pasapalos',   precio_usd: 2.50, precio: 2.50 * RATE, costo: 2.50 * RATE * 0.35 },
+  { nombre: 'Tostones con Guasacaca',    categoria: 'pasapalos',   precio_usd: 3.00, precio: 3.00 * RATE, costo: 3.00 * RATE * 0.28 },
 
   // Platos Principales
-  { name: 'Pabellón Criollo',          category: 'principales', price_usd: 8.00, price_bs: 8.00 * RATE, cost_bs: 8.00 * RATE * 0.35 },
-  { name: 'Carne Mechada con Arroz',   category: 'principales', price_usd: 7.50, price_bs: 7.50 * RATE, cost_bs: 7.50 * RATE * 0.38 },
-  { name: 'Pollo Guisado con Arroz',   category: 'principales', price_usd: 7.00, price_bs: 7.00 * RATE, cost_bs: 7.00 * RATE * 0.35 },
-  { name: 'Pernil al Horno con Arroz', category: 'principales', price_usd: 8.50, price_bs: 8.50 * RATE, cost_bs: 8.50 * RATE * 0.40 },
-  { name: 'Chivo en Coco',             category: 'principales', price_usd: 9.00, price_bs: 9.00 * RATE, cost_bs: 9.00 * RATE * 0.40 },
-  { name: 'Cazuela de Mariscos',       category: 'principales', price_usd: 10.00, price_bs: 10.00 * RATE, cost_bs: 10.00 * RATE * 0.42 },
+  { nombre: 'Pabellón Criollo',          categoria: 'principales', precio_usd: 8.00, precio: 8.00 * RATE, costo: 8.00 * RATE * 0.35 },
+  { nombre: 'Carne Mechada con Arroz',   categoria: 'principales', precio_usd: 7.50, precio: 7.50 * RATE, costo: 7.50 * RATE * 0.38 },
+  { nombre: 'Pollo Guisado con Arroz',   categoria: 'principales', precio_usd: 7.00, precio: 7.00 * RATE, costo: 7.00 * RATE * 0.35 },
+  { nombre: 'Pernil al Horno con Arroz', categoria: 'principales', precio_usd: 8.50, precio: 8.50 * RATE, costo: 8.50 * RATE * 0.40 },
+  { nombre: 'Chivo en Coco',             categoria: 'principales', precio_usd: 9.00, precio: 9.00 * RATE, costo: 9.00 * RATE * 0.40 },
+  { nombre: 'Cazuela de Mariscos',       categoria: 'principales', precio_usd: 10.00, precio: 10.00 * RATE, costo: 10.00 * RATE * 0.42 },
 
   // Arepas
-  { name: 'Arepa Reina Pepiada',       category: 'arepas', price_usd: 4.50, price_bs: 4.50 * RATE, cost_bs: 4.50 * RATE * 0.32 },
-  { name: 'Arepa de Pabellón',         category: 'arepas', price_usd: 5.00, price_bs: 5.00 * RATE, cost_bs: 5.00 * RATE * 0.35 },
-  { name: 'Arepa de Pernil',           category: 'arepas', price_usd: 4.50, price_bs: 4.50 * RATE, cost_bs: 4.50 * RATE * 0.35 },
-  { name: 'Arepa de Queso',            category: 'arepas', price_usd: 3.00, price_bs: 3.00 * RATE, cost_bs: 3.00 * RATE * 0.28 },
-  { name: 'Arepa de Chicharrón',       category: 'arepas', price_usd: 4.00, price_bs: 4.00 * RATE, cost_bs: 4.00 * RATE * 0.33 },
+  { nombre: 'Arepa Reina Pepiada',       categoria: 'arepas',      precio_usd: 4.50, precio: 4.50 * RATE, costo: 4.50 * RATE * 0.32 },
+  { nombre: 'Arepa de Pabellón',         categoria: 'arepas',      precio_usd: 5.00, precio: 5.00 * RATE, costo: 5.00 * RATE * 0.35 },
+  { nombre: 'Arepa de Pernil',           categoria: 'arepas',      precio_usd: 4.50, precio: 4.50 * RATE, costo: 4.50 * RATE * 0.35 },
+  { nombre: 'Arepa de Queso',            categoria: 'arepas',      precio_usd: 3.00, precio: 3.00 * RATE, costo: 3.00 * RATE * 0.28 },
+  { nombre: 'Arepa de Chicharrón',       categoria: 'arepas',      precio_usd: 4.00, precio: 4.00 * RATE, costo: 4.00 * RATE * 0.33 },
 
   // Cachapas
-  { name: 'Cachapa con Queso de Mano', category: 'cachapas', price_usd: 5.00, price_bs: 5.00 * RATE, cost_bs: 5.00 * RATE * 0.33 },
-  { name: 'Cachapa con Pernil',        category: 'cachapas', price_usd: 6.00, price_bs: 6.00 * RATE, cost_bs: 6.00 * RATE * 0.38 },
-  { name: 'Cachapa con Queso y Jamón', category: 'cachapas', price_usd: 5.50, price_bs: 5.50 * RATE, cost_bs: 5.50 * RATE * 0.35 },
+  { nombre: 'Cachapa con Queso de Mano', categoria: 'cachapas',    precio_usd: 5.00, precio: 5.00 * RATE, costo: 5.00 * RATE * 0.33 },
+  { nombre: 'Cachapa con Pernil',        categoria: 'cachapas',    precio_usd: 6.00, precio: 6.00 * RATE, costo: 6.00 * RATE * 0.38 },
+  { nombre: 'Cachapa con Queso y Jamón', categoria: 'cachapas',    precio_usd: 5.50, precio: 5.50 * RATE, costo: 5.50 * RATE * 0.35 },
 
   // Bebidas
-  { name: 'Jugo Natural',              category: 'bebidas', price_usd: 2.00, price_bs: 2.00 * RATE, cost_bs: 2.00 * RATE * 0.25 },
-  { name: 'Papelón con Limón',         category: 'bebidas', price_usd: 2.00, price_bs: 2.00 * RATE, cost_bs: 2.00 * RATE * 0.20 },
-  { name: 'Malta',                     category: 'bebidas', price_usd: 1.50, price_bs: 1.50 * RATE, cost_bs: 1.50 * RATE * 0.40 },
-  { name: 'Refresco',                  category: 'bebidas', price_usd: 1.50, price_bs: 1.50 * RATE, cost_bs: 1.50 * RATE * 0.35 },
-  { name: 'Agua Mineral',              category: 'bebidas', price_usd: 1.00, price_bs: 1.00 * RATE, cost_bs: 1.00 * RATE * 0.30 },
-  { name: 'Guarapo de Caña',           category: 'bebidas', price_usd: 2.00, price_bs: 2.00 * RATE, cost_bs: 2.00 * RATE * 0.20 },
+  { nombre: 'Jugo Natural',              categoria: 'bebidas',     precio_usd: 2.00, precio: 2.00 * RATE, costo: 2.00 * RATE * 0.25 },
+  { nombre: 'Papelón con Limón',         categoria: 'bebidas',     precio_usd: 2.00, precio: 2.00 * RATE, costo: 2.00 * RATE * 0.20 },
+  { nombre: 'Malta',                     categoria: 'bebidas',     precio_usd: 1.50, precio: 1.50 * RATE, costo: 1.50 * RATE * 0.40 },
+  { nombre: 'Refresco',                  categoria: 'bebidas',     precio_usd: 1.50, precio: 1.50 * RATE, costo: 1.50 * RATE * 0.35 },
+  { nombre: 'Agua Mineral',              categoria: 'bebidas',     precio_usd: 1.00, precio: 1.00 * RATE, costo: 1.00 * RATE * 0.30 },
+  { nombre: 'Guarapo de Caña',           categoria: 'bebidas',     precio_usd: 2.00, precio: 2.00 * RATE, costo: 2.00 * RATE * 0.20 },
 
   // Postres
-  { name: 'Quesillo Casero',           category: 'postres', price_usd: 3.00, price_bs: 3.00 * RATE, cost_bs: 3.00 * RATE * 0.30 },
-  { name: 'Dulce de Plátano Maduro',   category: 'postres', price_usd: 2.50, price_bs: 2.50 * RATE, cost_bs: 2.50 * RATE * 0.25 },
-  { name: 'Arroz con Leche',           category: 'postres', price_usd: 2.50, price_bs: 2.50 * RATE, cost_bs: 2.50 * RATE * 0.28 },
-  { name: 'Bienmesabe',                category: 'postres', price_usd: 3.00, price_bs: 3.00 * RATE, cost_bs: 3.00 * RATE * 0.28 },
-  { name: 'Merengón',                  category: 'postres', price_usd: 3.50, price_bs: 3.50 * RATE, cost_bs: 3.50 * RATE * 0.32 },
+  { nombre: 'Quesillo Casero',           categoria: 'postres',     precio_usd: 3.00, precio: 3.00 * RATE, costo: 3.00 * RATE * 0.30 },
+  { nombre: 'Dulce de Plátano Maduro',   categoria: 'postres',     precio_usd: 2.50, precio: 2.50 * RATE, costo: 2.50 * RATE * 0.25 },
+  { nombre: 'Arroz con Leche',           categoria: 'postres',     precio_usd: 2.50, precio: 2.50 * RATE, costo: 2.50 * RATE * 0.28 },
+  { nombre: 'Bienmesabe',                categoria: 'postres',     precio_usd: 3.00, precio: 3.00 * RATE, costo: 3.00 * RATE * 0.28 },
+  { nombre: 'Merengón',                  categoria: 'postres',     precio_usd: 3.50, precio: 3.50 * RATE, costo: 3.50 * RATE * 0.32 },
 ]
 
 // ── Inventario ────────────────────────────────────────────────
@@ -161,35 +159,37 @@ async function seed() {
 
   // ── Mesas ───────────────────────────────────────────────────
   console.log('\n🪑 Mesas...')
-  const { data: existingTables } = await supabase.from('tables').select('id').limit(1)
+  const { data: existingTables } = await supabase.from('mesas').select('id').limit(1)
   if (existingTables?.length) {
     console.log('  ↳ ya existen, se omiten')
   } else {
-    const { error } = await supabase.from('tables').insert(mesas)
+    const { error } = await supabase.from('mesas').insert(mesas)
     if (error) console.error('  ✗ mesas:', error.message)
     else console.log(`  ✓ ${mesas.length} mesas insertadas`)
   }
 
   // ── Platos del menú ─────────────────────────────────────────
   console.log('\n🍽️  Platos del menú...')
-  const { data: existingDishes } = await supabase.from('dishes').select('id').limit(1)
+  const { data: existingDishes } = await supabase.from('menu_items').select('id').limit(1)
   if (existingDishes?.length) {
     console.log('  ↳ ya existen, se omiten')
   } else {
     const rows = platos.map(p => ({
-      ...p,
-      price_bs:  Math.round(p.price_bs),
-      cost_bs:   Math.round(p.cost_bs),
-      active: true,
+      nombre:    p.nombre,
+      categoria: p.categoria,
+      precio:    Math.round(p.precio),
+      precio_usd: p.precio_usd,
+      costo:     Math.round(p.costo),
+      activo:    true,
     }))
-    const { error } = await supabase.from('dishes').insert(rows)
+    const { error } = await supabase.from('menu_items').insert(rows)
     if (error) console.error('  ✗ dishes:', error.message)
     else console.log(`  ✓ ${rows.length} platos insertados`)
   }
 
   // ── Productos de inventario ─────────────────────────────────
   console.log('\n📦 Inventario...')
-  const { data: existingProducts } = await supabase.from('products').select('id').limit(1)
+  const { data: existingProducts } = await supabase.from('inventario').select('id').limit(1)
   if (existingProducts?.length) {
     console.log('  ↳ ya existen, se omiten')
   } else {
@@ -198,7 +198,7 @@ async function seed() {
       cost_per_unit: Math.round(p.cost_per_unit),
       active: true,
     }))
-    const { error } = await supabase.from('products').insert(rows)
+    const { error } = await supabase.from('inventario').insert(rows)
     if (error) console.error('  ✗ products:', error.message)
     else console.log(`  ✓ ${rows.length} productos insertados`)
   }

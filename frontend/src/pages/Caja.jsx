@@ -40,11 +40,11 @@ export default function Caja() {
       setRegister(reg)
       setRate(reg.exchange_rate_bcv?.toString() || '')
       setPaymentRows(
-        reg.daily_payments?.map(p => ({
+        reg.caja_pagos?.map(p => ({
           id: p.id,
-          method: p.method,
-          amount: p.amount?.toString() || '',
-          notes: p.notes || ''
+          method: p.metodo,
+          amount: p.monto?.toString() || '',
+          notes: p.referencia || ''
         })) || []
       )
       setDishes(dishRes.data.dishes || [])

@@ -8,7 +8,7 @@ router.use(requireAuth)
 // Listar todas las mesas con orden activa si la tienen
 router.get('/', async (req, res) => {
   const { data: tables, error } = await supabase
-    .from('tables')
+    .from('mesas')
     .select('*')
     .eq('active', true)
     .order('number')
@@ -18,7 +18,7 @@ router.get('/', async (req, res) => {
   // Adjuntar orden activa si existe
   const activeStatuses = ['borrador', 'pendiente', 'en_preparacion', 'lista', 'entregada']
   const { data: activeOrders } = await supabase
-    .from('orders')
+    .from('ordenes')
     .select('id, table_id, status, total_bs, waiter_name, sent_at, created_at')
     .in('status', activeStatuses)
 
@@ -37,7 +37,7 @@ router.get('/', async (req, res) => {
 router.post('/', requireRoles('admin', 'dueno'), async (req, res) => {
   const { number, name, capacity } = req.body
   const { data, error } = await supabase
-    .from('tables')
+    .from('mesas')
     .insert({ number, name: name || `Mesa ${number}`, capacity: capacity || 4 })
     .select().single()
 
@@ -49,7 +49,7 @@ router.post('/', requireRoles('admin', 'dueno'), async (req, res) => {
 router.put('/:id', requireRoles('admin', 'dueno'), async (req, res) => {
   const { number, name, capacity, status, active } = req.body
   const { data, error } = await supabase
-    .from('tables')
+    .from('mesas')
     .update({ number, name, capacity, status, active })
     .eq('id', req.params.id)
     .select().single()

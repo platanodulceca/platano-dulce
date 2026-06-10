@@ -8,7 +8,7 @@ router.use(requireAuth)
 // Listar productos activos
 router.get('/products', async (req, res) => {
   const { data, error } = await supabase
-    .from('products')
+    .from('inventario')
     .select('*')
     .eq('active', true)
     .order('category')
@@ -22,7 +22,7 @@ router.get('/products', async (req, res) => {
 router.post('/products', async (req, res) => {
   const { name, category, unit, minimum_stock, current_stock, cost_per_unit } = req.body
   const { data, error } = await supabase
-    .from('products')
+    .from('inventario')
     .insert({ name, category, unit, minimum_stock, current_stock, cost_per_unit })
     .select()
     .single()
@@ -35,7 +35,7 @@ router.post('/products', async (req, res) => {
 router.put('/products/:id', async (req, res) => {
   const { name, category, unit, minimum_stock, current_stock, cost_per_unit, active } = req.body
   const { data, error } = await supabase
-    .from('products')
+    .from('inventario')
     .update({ name, category, unit, minimum_stock, current_stock, cost_per_unit, active })
     .eq('id', req.params.id)
     .select()
@@ -50,7 +50,7 @@ router.get('/today', async (req, res) => {
   const today = new Date().toISOString().split('T')[0]
 
   const { data: products } = await supabase
-    .from('products')
+    .from('inventario')
     .select('*')
     .eq('active', true)
     .order('category').order('name')
@@ -65,7 +65,7 @@ router.get('/today', async (req, res) => {
 
   // Calcular consumo teórico desde las ventas de hoy
   const { data: todayRegister } = await supabase
-    .from('daily_registers')
+    .from('caja_registros')
     .select('id')
     .eq('date', today)
     .single()
@@ -145,7 +145,7 @@ router.post('/count', async (req, res) => {
 
   // Actualizar stock en products
   await supabase
-    .from('products')
+    .from('inventario')
     .update({ current_stock: physical_count })
     .eq('id', product_id)
 

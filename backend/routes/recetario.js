@@ -5,51 +5,63 @@ import { requireAuth, requireRoles } from '../middleware/auth.js'
 const router = Router()
 router.use(requireAuth)
 
+// Normaliza fila de menu_items (columnas ES) → campos inglés que espera el frontend
+const todish = d => d ? ({
+  id:        d.id,
+  name:      d.nombre,
+  category:  d.categoria,
+  price_bs:  d.precio,
+  price_usd: d.precio_usd,
+  cost_bs:   d.costo,
+  active:    d.activo,
+  created_at: d.created_at,
+}) : null
+
 // Listar platos con ingredientes
 router.get('/', async (req, res) => {
-  const { data: dishes, error } = await supabase
-    .from('dishes')
+  const { data: rows, error } = await supabase
+    .from('menu_items')
     .select('*')
-    .eq('active', true)
-    .order('category').order('name')
+    .eq('activo', true)
+    .order('categoria').order('nombre')
 
   if (error) return res.status(500).json({ error: error.message })
 
   const { data: ingredients } = await supabase
     .from('recipe_ingredients')
-    .select('*, products(id, name, unit)')
+    .select('*, inventario(id, name, unit)')
 
-  const result = dishes.map(d => ({
-    ...d,
+  const dishes = rows.map(d => ({
+    ...todish(d),
     ingredients: ingredients?.filter(i => i.dish_id === d.id) || []
   }))
 
-  res.json({ dishes: result })
+  res.json({ dishes })
 })
 
 // Crear plato
 router.post('/dishes', requireRoles('admin', 'chef', 'dueno'), async (req, res) => {
   const { name, category, price_bs, price_usd, cost_bs } = req.body
   const { data, error } = await supabase
-    .from('dishes')
-    .insert({ name, category, price_bs, price_usd, cost_bs })
+    .from('menu_items')
+    .insert({ nombre: name, categoria: category, precio: price_bs, precio_usd: price_usd, costo: cost_bs, activo: true })
     .select().single()
 
   if (error) return res.status(500).json({ error: error.message })
-  res.status(201).json({ dish: data })
+  res.status(201).json({ dish: todish(data) })
 })
 
 // Editar plato
 router.put('/dishes/:id', requireRoles('admin', 'chef', 'dueno'), async (req, res) => {
   const { name, category, price_bs, price_usd, cost_bs, active } = req.body
   const { data, error } = await supabase
-    .from('dishes')
-    .update({ name, category, price_bs, price_usd, cost_bs, active })
+    .from('menu_items')
+    .update({ nombre: name, categoria: category, precio: price_bs, precio_usd: price_usd, costo: cost_bs, activo: active })
     .eq('id', req.params.id)
     .select().single()
 
   if (error) return res.status(500).json({ error: error.message })
-  res.json({ dish: data })
+  res.json({ dish: todish(data) })
 })
 
 // Agregar/actualizar ingrediente en receta
@@ -69,12 +81,12 @@ router.post('/ingredients', requireRoles('admin', 'chef', 'dueno'), async (req, 
       .from('recipe_ingredients')
       .update({ quantity_per_portion })
       .eq('id', existing.id)
-      .select('*, products(id, name, unit)').single())
+      .select('*, inventario(id, name, unit)').single())
   } else {
     ;({ data, error } = await supabase
       .from('recipe_ingredients')
       .insert({ dish_id, product_id, quantity_per_portion })
-      .select('*, products(id, name, unit)').single())
+      .select('*, inventario(id, name, unit)').single())
   }
 
   if (error) return res.status(500).json({ error: error.message })

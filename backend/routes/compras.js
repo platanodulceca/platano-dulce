@@ -41,7 +41,7 @@ router.post('/generate', requireRoles('admin', 'chef', 'dueno'), async (req, res
   const we = weekEnd.toISOString().split('T')[0]
 
   const { data: products } = await supabase
-    .from('products')
+    .from('inventario')
     .select('*')
     .eq('active', true)
 
@@ -51,7 +51,7 @@ router.post('/generate', requireRoles('admin', 'chef', 'dueno'), async (req, res
   const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0]
 
   const { data: registers } = await supabase
-    .from('daily_registers')
+    .from('caja_registros')
     .select('id')
     .gte('date', sevenDaysAgoStr)
 
