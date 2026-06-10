@@ -268,13 +268,11 @@ router.put('/:id/cobrar', requireRoles('admin','cajero','dueno'), async (req, re
   // Insertar ítems en venta_items
   if (order.orden_items?.length) {
     const salesItems = order.orden_items.map(item => ({
-      register_id: register.id,
-      dish_id: item.dish_id,
-      dish_name: item.dish_name,
-      item_type: item.item_type,
-      quantity: item.quantity,
-      price_bs: item.price_bs,
-      cost_bs: item.cost_bs
+      caja_id:  register.id,
+      nombre:   item.dish_name,
+      cantidad: item.quantity,
+      precio:   item.price_bs,
+      costo:    item.cost_bs,
     }))
     await supabase.from('venta_items').insert(salesItems)
   }
