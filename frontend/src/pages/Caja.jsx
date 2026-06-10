@@ -154,7 +154,7 @@ export default function Caja() {
       const res = await api.post(`/caja/${register.id}/items`, {
         nombre:   pending.dish.name,
         cantidad: pending.qty,
-        precio:   pending.dish.price_usd,
+        precio:   pending.dish.price_bs,
         costo:    pending.dish.cost_bs,
       })
       setRegister(r => ({ ...r, venta_items: [...(r.venta_items || []), res.data.item] }))
@@ -484,10 +484,10 @@ export default function Caja() {
                 </div>
                 <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
                   <span className="text-sm text-muted" style={{ flex: 1 }}>
-                    {fmtUsd(pending.dish.price_usd)}
-                    {rateNum > 0 && <span> ({fmtBs(pending.dish.price_usd * rateNum)})</span>}
-                    {' '}× {pending.qty} = <strong>{fmtUsd(pending.dish.price_usd * pending.qty)}</strong>
-                    {rateNum > 0 && <strong> ({fmtBs(pending.dish.price_usd * rateNum * pending.qty)})</strong>}
+                    {fmtUsd(pending.dish.price_bs)}
+                    {rateNum > 0 && <span> ({fmtBs(pending.dish.price_bs * rateNum)})</span>}
+                    {' '}× {pending.qty} = <strong>{fmtUsd(pending.dish.price_bs * pending.qty)}</strong>
+                    {rateNum > 0 && <strong> ({fmtBs(pending.dish.price_bs * rateNum * pending.qty)})</strong>}
                   </span>
                   <button className="btn btn-sm btn-secondary" style={{ width: 32, padding: 0 }}
                     onClick={() => setPending(p => ({ ...p, qty: Math.max(1, p.qty - 1) }))}>−</button>
@@ -636,7 +636,7 @@ function DishRow({ dish, selected, onSelect }) {
         {dish.name}
       </div>
       <div style={{ fontWeight: 700, color: 'var(--orange)', flexShrink: 0 }}>
-        {fmtUsd(dish.price_usd)}
+        {fmtUsd(dish.price_bs)}
       </div>
       <span style={{ color: selected ? 'var(--orange)' : 'var(--gray-300)', fontSize: '1.1rem', flexShrink: 0 }}>
         {selected ? '✓' : '+'}
