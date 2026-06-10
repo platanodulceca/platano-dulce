@@ -32,7 +32,7 @@ export const PAYMENT_LABELS = {
   delivery:      'Delivery',
   propina:       'Propina',
   vuelto:        'Vuelto',
-  credito_fiado: 'Crédito / Fiado'
+  credito: 'Crédito / Fiado'
 }
 
 export const PAYMENT_CURRENCY = {
@@ -45,7 +45,7 @@ export const PAYMENT_CURRENCY = {
   delivery:      'bs',
   propina:       'bs',
   vuelto:        'bs',
-  credito_fiado: 'bs'
+  credito:       'bs'
 }
 
 export const PAYMENT_METHODS = Object.keys(PAYMENT_LABELS)

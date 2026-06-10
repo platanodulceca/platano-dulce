@@ -15,7 +15,7 @@ const PAYMENT_CURRENCIES = {
   delivery:      'bs',
   propina:       'bs',
   vuelto:        'bs',
-  credito_fiado: 'bs'
+  credito: 'bs'
 }
 
 // Obtener o crear registro del día
