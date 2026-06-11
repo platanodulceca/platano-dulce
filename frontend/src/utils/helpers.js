@@ -50,14 +50,15 @@ export const PAYMENT_CURRENCY = {
 
 export const PAYMENT_METHODS = Object.keys(PAYMENT_LABELS)
 
-export const calcTotals = (payments, rate) => {
+export const calcTotals = (pagos, tasa) => {
   let totalBs = 0
-  payments?.forEach(p => {
-    const amount = Number(p.amount) || 0
-    if (p.currency === 'usd') totalBs += amount * (rate || 1)
-    else totalBs += amount
+  pagos?.forEach(p => {
+    const monto = Number(p.monto) || 0
+    const moneda = p.moneda || PAYMENT_CURRENCY[p.metodo] || 'bs'
+    if (moneda === 'usd') totalBs += monto * (tasa || 1)
+    else totalBs += monto
   })
-  const totalUsd = rate > 0 ? totalBs / rate : 0
+  const totalUsd = tasa > 0 ? totalBs / tasa : 0
   return { totalBs, totalUsd }
 }
 

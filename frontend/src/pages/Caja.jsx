@@ -1,211 +1,195 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import api from '../services/api'
 import {
-  fmtBs, fmtUsd, fmtDate, PAYMENT_LABELS, PAYMENT_CURRENCY,
-  PAYMENT_METHODS, calcTotals, ORDER_STATUS_LABELS
+  fmtBs, fmtUsd, fmtDate,
+  PAYMENT_LABELS, PAYMENT_CURRENCY, PAYMENT_METHODS, calcTotals,
+  ORDER_STATUS_LABELS,
 } from '../utils/helpers'
 
-const CATEGORY_LABELS = {
-  pasapalos: 'Pasapalos', principales: 'Platos Principales',
-  arepas: 'Arepas', cachapas: 'Cachapas',
-  bebidas: 'Bebidas', postres: 'Postres',
-  desayunos: 'Desayunos', almuerzos: 'Almuerzos', empanadas: 'Empanadas',
-  plato: 'Platos', bebida: 'Bebidas', postre: 'Postres',
-  entrada: 'Entradas', otro: 'Otros',
-}
-const catLabel = c => CATEGORY_LABELS[c] || c
-
 export default function Caja() {
-  const [register, setRegister]     = useState(null)
-  const [paymentRows, setPaymentRows] = useState([])
-  const [rate, setRate]             = useState('')
-  const [dishes, setDishes]         = useState([])
-  const [loading, setLoading]       = useState(true)
-  const [saving, setSaving]         = useState('')
-  const [addingRow, setAddingRow]   = useState(false)
-  const [error, setError]           = useState('')
-  const [closingNote, setClosingNote] = useState('')
-  const [showClose, setShowClose]   = useState(false)
+  const [caja, setCaja]           = useState(null)
+  const [pagos, setPagos]         = useState([])
+  const [tasa, setTasa]           = useState('')
+  const [platos, setPlatos]       = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [error, setError]         = useState('')
+  const [addingPago, setAddingPago] = useState(false)
 
-  // Menú de platos
-  const [showMenu, setShowMenu]     = useState(false)
-  const [menuSearch, setMenuSearch] = useState('')
-  const [pending, setPending]       = useState(null)   // { dish, qty }
-  const [addingItem, setAddingItem] = useState(false)
+  // Menú
+  const [showMenu, setShowMenu]   = useState(false)
+  const [busqueda, setBusqueda]   = useState('')
+  const [pending, setPending]     = useState(null)   // { plato, qty }
+  const [addingPlato, setAddingPlato] = useState(false)
+
+  // Cierre
+  const [showCierre, setShowCierre] = useState(false)
+  const [notasCierre, setNotasCierre] = useState('')
+  const [cerrando, setCerrando]   = useState(false)
 
   // Órdenes de mesa
-  const [pendingOrders, setPendingOrders] = useState([])
-  const [cobrarOrder, setCobrarOrder]     = useState(null)
+  const [ordenesListas, setOrdenesListas] = useState([])
+  const [cobrarOrden, setCobrarOrden]     = useState(null)
   const [cobrandoId, setCobrandoId]       = useState(null)
   const pollRef = useRef(null)
 
-  const loadPendingOrders = useCallback(async () => {
+  const cargarOrdenes = useCallback(async () => {
     try {
-      const res = await api.get('/orders/to-collect')
-      setPendingOrders(res.data.orders || [])
+      const res = await api.get('/ordenes/cobrar')
+      setOrdenesListas(res.data.ordenes || [])
     } catch {}
   }, [])
 
-  const loadToday = useCallback(async () => {
+  const cargarHoy = useCallback(async () => {
     try {
-      const [regRes, dishRes] = await Promise.all([
-        api.get('/caja/today'),
+      const [cajaRes, platosRes] = await Promise.all([
+        api.get('/caja/hoy'),
         api.get('/recetario'),
       ])
-      const reg = regRes.data.register
-      setRegister(reg)
-      setRate(reg.tasa_bcv?.toString() || '')
-      setPaymentRows(
-        reg.caja_pagos?.map(p => ({
-          id:     p.id,
-          method: p.metodo,
-          amount: p.monto?.toString() || '',
-          notes:  p.referencia || '',
+      const c = cajaRes.data.caja
+      setCaja(c)
+      setTasa(c.tasa_bcv?.toString() || '')
+      setPagos(
+        c.caja_pagos?.map(p => ({
+          id:         p.id,
+          metodo:     p.metodo,
+          monto:      p.monto?.toString() || '',
+          moneda:     p.moneda || PAYMENT_CURRENCY[p.metodo] || 'bs',
+          referencia: p.referencia || '',
         })) || []
       )
-      setDishes(dishRes.data.dishes || [])
+      setPlatos(platosRes.data.items || [])
     } catch (err) {
-      setError(err.response?.data?.error || 'Error al cargar datos')
-    } finally {
-      setLoading(false)
+      setError(err.response?.data?.error || 'Error al cargar')
     }
+    setLoading(false)
   }, [])
 
   useEffect(() => {
-    loadToday()
-    loadPendingOrders()
-    pollRef.current = setInterval(loadPendingOrders, 5000)
+    cargarHoy()
+    cargarOrdenes()
+    pollRef.current = setInterval(cargarOrdenes, 5000)
     return () => clearInterval(pollRef.current)
-  }, [loadToday, loadPendingOrders])
+  }, [cargarHoy, cargarOrdenes])
 
-  const cobrarOrden = async (orderId) => {
-    setCobrandoId(orderId)
+  const tasaNum = parseFloat(tasa) || 0
+  const cerrado = caja?.cerrado === true
+  const ventas  = caja?.venta_items || []
+
+  const totalVentaBs = ventas.reduce((s, i) => s + Number(i.precio) * tasaNum * Number(i.cantidad), 0)
+
+  const { totalBs, totalUsd } = calcTotals(
+    pagos.map(p => ({ monto: parseFloat(p.monto) || 0, moneda: p.moneda || PAYMENT_CURRENCY[p.metodo] || 'bs' })),
+    tasaNum
+  )
+
+  // ── Tasa ──────────────────────────────────────────────────────
+  const guardarTasa = async () => {
+    if (!caja) return
     try {
-      await api.put(`/orders/${orderId}/cobrar`)
-      await Promise.all([loadToday(), loadPendingOrders()])
-      setCobrarOrder(null)
+      const res = await api.put(`/caja/${caja.id}/tasa`, { tasa_bcv: parseFloat(tasa) || 0 })
+      setCaja(c => ({ ...c, tasa_bcv: res.data.caja.tasa_bcv }))
+    } catch {}
+  }
+
+  // ── Pagos ─────────────────────────────────────────────────────
+  const agregarPago = async () => {
+    if (!caja || cerrado || addingPago) return
+    setAddingPago(true)
+    try {
+      const res = await api.post(`/caja/${caja.id}/pagos`, { metodo: 'efectivo_bs', monto: 0 })
+      setPagos(ps => [{ id: res.data.pago.id, metodo: 'efectivo_bs', monto: '', moneda: 'bs', referencia: '' }, ...ps])
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error')
+    }
+    setAddingPago(false)
+  }
+
+  const actualizarPago = (idx, campo, valor) =>
+    setPagos(ps => ps.map((p, i) => {
+      if (i !== idx) return p
+      const updated = { ...p, [campo]: valor }
+      if (campo === 'metodo') updated.moneda = PAYMENT_CURRENCY[valor] || 'bs'
+      return updated
+    }))
+
+  const guardarPago = async (idx) => {
+    if (!caja || cerrado) return
+    const p = pagos[idx]
+    if (!p.id) return
+    try {
+      await api.put(`/caja/${caja.id}/pagos/${p.id}`, {
+        metodo: p.metodo, monto: parseFloat(p.monto) || 0, referencia: p.referencia,
+      })
+    } catch {}
+  }
+
+  const eliminarPago = async (idx) => {
+    const p = pagos[idx]
+    if (p.id) { try { await api.delete(`/caja/${caja.id}/pagos/${p.id}`) } catch {} }
+    setPagos(ps => ps.filter((_, i) => i !== idx))
+  }
+
+  // ── Ventas / Platos ───────────────────────────────────────────
+  const agregarPlato = async () => {
+    if (!caja || !pending) return
+    setAddingPlato(true)
+    try {
+      const res = await api.post(`/caja/${caja.id}/ventas`, {
+        nombre:   pending.plato.nombre,
+        precio:   pending.plato.precio,
+        costo:    pending.plato.costo,
+        cantidad: pending.qty,
+      })
+      setCaja(c => ({ ...c, venta_items: [...(c.venta_items || []), res.data.venta] }))
+      setPending(null)
+      setShowMenu(false)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al agregar')
+    }
+    setAddingPlato(false)
+  }
+
+  const eliminarVenta = async (itemId) => {
+    try {
+      await api.delete(`/caja/${caja.id}/ventas/${itemId}`)
+      setCaja(c => ({ ...c, venta_items: c.venta_items.filter(i => i.id !== itemId) }))
+    } catch {}
+  }
+
+  // ── Cobrar orden de mesa ──────────────────────────────────────
+  const confirmarCobro = async (ordenId) => {
+    setCobrandoId(ordenId)
+    try {
+      await api.put(`/ordenes/${ordenId}/cobrar`)
+      await Promise.all([cargarHoy(), cargarOrdenes()])
+      setCobrarOrden(null)
     } catch (err) {
       setError(err.response?.data?.error || 'Error al cobrar')
     }
     setCobrandoId(null)
   }
 
-  const saveRate = async () => {
-    if (!register) return
-    setSaving('rate')
+  // ── Cierre ────────────────────────────────────────────────────
+  const cerrarCaja = async () => {
+    setCerrando(true)
     try {
-      const res = await api.put(`/caja/${register.id}/rate`, { exchange_rate_bcv: parseFloat(rate) || 0 })
-      setRegister(r => ({ ...r, tasa_bcv: res.data.register.tasa_bcv }))
-    } catch {}
-    setSaving('')
-  }
-
-  // ── Pagos ──────────────────────────────────────────────────
-  const addPaymentRow = async () => {
-    if (!register || closed || addingRow) return
-    setAddingRow(true)
-    try {
-      const res = await api.post(`/caja/${register.id}/payments`, {
-        method: 'efectivo_bs', amount: 0, notes: '',
-      })
-      setPaymentRows(rows => [{
-        id:     res.data.payment.id,
-        method: 'efectivo_bs',
-        amount: '',
-        notes:  '',
-      }, ...rows])
-    } catch (err) {
-      setError(err.response?.data?.error || 'Error al crear pago')
-    }
-    setAddingRow(false)
-  }
-
-  const updatePaymentRow = (idx, field, value) =>
-    setPaymentRows(rows => rows.map((r, i) => i === idx ? { ...r, [field]: value } : r))
-
-  const savePaymentRow = async (idx) => {
-    if (!register || closed) return
-    const row = paymentRows[idx]
-    if (!row.id) return
-    try {
-      await api.put(`/caja/${register.id}/payments/${row.id}`, {
-        method: row.method,
-        amount: parseFloat(row.amount) || 0,
-        notes:  row.notes,
-      })
-    } catch (err) {
-      setError(err.response?.data?.error || 'Error al guardar pago')
-    }
-  }
-
-  const deletePaymentRow = async (idx) => {
-    const row = paymentRows[idx]
-    if (row.id) {
-      try { await api.delete(`/caja/${register.id}/payments/${row.id}`) } catch {}
-    }
-    setPaymentRows(rows => rows.filter((_, i) => i !== idx))
-  }
-
-  // ── Platos vendidos ────────────────────────────────────────
-  const addItem = async () => {
-    if (!register || !pending) return
-    setAddingItem(true)
-    try {
-      const res = await api.post(`/caja/${register.id}/items`, {
-        nombre:   pending.dish.name,
-        cantidad: pending.qty,
-        precio:   pending.dish.price_bs,
-        costo:    pending.dish.cost_bs,
-      })
-      setRegister(r => ({ ...r, venta_items: [...(r.venta_items || []), res.data.item] }))
-      setPending(null)
-    } catch (err) {
-      setError(err.response?.data?.error || 'Error al agregar')
-    }
-    setAddingItem(false)
-  }
-
-  const removeItem = async (itemId) => {
-    if (!register) return
-    try {
-      await api.delete(`/caja/${register.id}/items/${itemId}`)
-      setRegister(r => ({ ...r, venta_items: r.venta_items.filter(i => i.id !== itemId) }))
-    } catch {}
-  }
-
-  const closeDay = async () => {
-    if (!register) return
-    setSaving('close')
-    try {
-      const res = await api.put(`/caja/${register.id}/close`, { notes: closingNote })
-      setRegister(res.data.register)
-      setShowClose(false)
+      const res = await api.put(`/caja/${caja.id}/cerrar`, { notes: notasCierre })
+      setCaja(res.data.caja)
+      setShowCierre(false)
     } catch (err) {
       setError(err.response?.data?.error || 'Error al cerrar')
     }
-    setSaving('')
+    setCerrando(false)
   }
 
-  // ── Derivados ──────────────────────────────────────────────
-  const rateNum  = parseFloat(rate) || 0
-  const { totalBs, totalUsd } = calcTotals(
-    paymentRows.map(r => ({ method: r.method, amount: parseFloat(r.amount) || 0, currency: PAYMENT_CURRENCY[r.method] || 'bs' })),
-    rateNum
-  )
-  const ventaItems   = register?.venta_items || []
-  const totalVentaBs = ventaItems.reduce((s, i) => s + Number(i.precio) * rateNum * Number(i.cantidad), 0)
-  const totalCostBs  = ventaItems.reduce((s, i) => s + Number(i.costo)  * rateNum * Number(i.cantidad), 0)
-  const margin       = totalBs > 0 ? ((totalBs - totalCostBs) / totalBs * 100) : 0
-  const closed       = register?.estado === 'cerrado'
-
-  // Menú helpers
-  const filteredDishes = menuSearch.trim()
-    ? dishes.filter(d => d.name.toLowerCase().includes(menuSearch.toLowerCase()))
+  // ── Menú helpers ──────────────────────────────────────────────
+  const platosVisibles = busqueda.trim()
+    ? platos.filter(p => p.nombre.toLowerCase().includes(busqueda.toLowerCase()))
     : null
-  const categories = [...new Set(dishes.map(d => d.category))].sort()
-  const byCategory = dishes.reduce((acc, d) => {
-    if (!acc[d.category]) acc[d.category] = []
-    acc[d.category].push(d)
+  const categorias  = [...new Set(platos.map(p => p.categoria))].sort()
+  const porCategoria = platos.reduce((acc, p) => {
+    if (!acc[p.categoria]) acc[p.categoria] = []
+    acc[p.categoria].push(p)
     return acc
   }, {})
 
@@ -216,48 +200,30 @@ export default function Caja() {
       <div className="page-header">
         <div>
           <h1 className="page-title">💰 Caja del Día</h1>
-          <p className="text-sm text-muted">{fmtDate(register?.fecha)}</p>
+          <p className="text-sm text-muted">{fmtDate(caja?.fecha)}</p>
         </div>
-        {closed
-          ? <span className="badge badge-cerrado">Cerrado</span>
-          : <span className="badge badge-abierto">Abierto</span>
-        }
+        <span className={`badge ${cerrado ? 'badge-cerrado' : 'badge-abierto'}`}>
+          {cerrado ? 'Cerrada' : 'Abierta'}
+        </span>
       </div>
 
-      {error && <div className="alert alert-error mb-4">{error}</div>}
+      {error && <div className="alert alert-error mb-4">{error}<button style={{ float: 'right' }} onClick={() => setError('')}>✕</button></div>}
 
-      {/* Órdenes de mesa listas para cobrar */}
-      {pendingOrders.length > 0 && (
+      {/* Órdenes listas para cobrar */}
+      {ordenesListas.length > 0 && (
         <div className="card mb-4" style={{ borderLeft: '4px solid var(--success)' }}>
           <div className="card-header" style={{ background: 'rgba(76,175,80,.06)' }}>
-            <span style={{ color: 'var(--success)', fontWeight: 700 }}>
-              🔔 Órdenes listas para cobrar ({pendingOrders.length})
-            </span>
-            <span className="text-sm text-muted">Toca para ver detalle</span>
+            <span style={{ color: 'var(--success)', fontWeight: 700 }}>🔔 Órdenes para cobrar ({ordenesListas.length})</span>
           </div>
-          {pendingOrders.map(order => (
-            <div
-              key={order.id}
-              style={{ display: 'flex', alignItems: 'center', gap: '.75rem', padding: '.75rem 1rem', borderBottom: '1px solid var(--gray-100)', cursor: 'pointer' }}
-              onClick={() => setCobrarOrder(order)}
-            >
+          {ordenesListas.map(o => (
+            <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: '.75rem', padding: '.75rem 1rem', borderBottom: '1px solid var(--gray-100)', cursor: 'pointer' }}
+              onClick={() => setCobrarOrden(o)}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700 }}>
-                  {order.table_name || `Mesa ${order.table_number}`}
-                  <span className="text-sm text-muted" style={{ marginLeft: '.5rem' }}>· {order.waiter_name}</span>
-                </div>
-                <div className="text-xs text-muted">
-                  {order.orden_items?.length || 0} ítems · {ORDER_STATUS_LABELS[order.status]}
-                  {order.split_count > 1 && ` · Dividir entre ${order.split_count}`}
-                </div>
+                <div style={{ fontWeight: 700 }}>Mesa {o.mesas?.numero}</div>
+                <div className="text-xs text-muted">{o.orden_items?.length || 0} ítems · {ORDER_STATUS_LABELS[o.estado]}</div>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontWeight: 800, color: 'var(--orange)' }}>{fmtBs(order.total_bs)}</div>
-                {order.split_count > 1 && (
-                  <div className="text-xs text-muted">{fmtBs(Number(order.total_bs) / order.split_count)} c/u</div>
-                )}
-              </div>
-              <span style={{ color: 'var(--success)', fontSize: '1.2rem' }}>›</span>
+              <div style={{ fontWeight: 800, color: 'var(--orange)' }}>{fmtUsd(o.total)}</div>
+              <span style={{ color: 'var(--success)' }}>›</span>
             </div>
           ))}
         </div>
@@ -266,18 +232,15 @@ export default function Caja() {
       {/* Tasa BCV */}
       <div className="card mb-4">
         <div className="card-header">
-          <span>💱 Tasa BCV del día</span>
-          {rateNum > 0 && <span className="text-sm text-muted">1 USD = Bs.{rateNum.toFixed(2)}</span>}
+          <span>💱 Tasa BCV</span>
+          {tasaNum > 0 && <span className="text-sm text-muted">1 $ = Bs.{tasaNum.toFixed(2)}</span>}
         </div>
         <div className="card-body">
           <div style={{ display: 'flex', gap: '.5rem' }}>
-            <input type="number" className="form-control" placeholder="Ej: 36.50" value={rate}
-              onChange={e => setRate(e.target.value)} onBlur={saveRate} disabled={closed} step="0.01" min="0" />
-            {!closed && (
-              <button className="btn btn-primary" onClick={saveRate} disabled={saving === 'rate'} style={{ whiteSpace: 'nowrap' }}>
-                {saving === 'rate' ? '...' : 'Guardar'}
-              </button>
-            )}
+            <input type="number" className="form-control" placeholder="Ej: 36.50"
+              value={tasa} onChange={e => setTasa(e.target.value)} onBlur={guardarTasa}
+              disabled={cerrado} step="0.01" min="0" />
+            {!cerrado && <button className="btn btn-primary" onClick={guardarTasa} style={{ whiteSpace: 'nowrap' }}>Guardar</button>}
           </div>
         </div>
       </div>
@@ -285,220 +248,157 @@ export default function Caja() {
       {/* Registro de Pagos */}
       <div className="card mb-4">
         <div className="card-header">
-          <span>💳 Registro de Pagos</span>
-          {!closed && (
-            <button className="btn btn-primary btn-sm" onClick={addPaymentRow} disabled={addingRow}>
-              {addingRow ? '...' : '+ Agregar'}
+          <span>💳 Pagos</span>
+          {!cerrado && (
+            <button className="btn btn-primary btn-sm" onClick={agregarPago} disabled={addingPago}>
+              {addingPago ? '...' : '+ Agregar'}
             </button>
           )}
         </div>
-        <div className="card-body" style={{ padding: paymentRows.length ? '1rem' : '.5rem 1rem', display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
-          {paymentRows.length === 0 && (
-            <p className="text-sm text-muted" style={{ textAlign: 'center', padding: '.5rem 0' }}>
-              {closed ? 'Sin pagos registrados' : 'Toca "+ Agregar" para registrar un pago'}
-            </p>
-          )}
-          {paymentRows.map((row, idx) => (
-            <div key={row.id || idx} style={{ background: 'var(--gray-50)', borderRadius: 10, padding: '.75rem', display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+        <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '.65rem' }}>
+          {pagos.length === 0 && <p className="text-sm text-muted text-center">Sin pagos registrados</p>}
+          {pagos.map((p, idx) => (
+            <div key={p.id || idx} style={{ background: 'var(--gray-50)', borderRadius: 10, padding: '.75rem', display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
               <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
-                <select className="form-control" value={row.method}
-                  onChange={e => updatePaymentRow(idx, 'method', e.target.value)}
-                  onBlur={() => savePaymentRow(idx)} disabled={closed}
-                  style={{ flex: '2 1 0', minWidth: 0 }}>
+                <select className="form-control" value={p.metodo}
+                  onChange={e => actualizarPago(idx, 'metodo', e.target.value)}
+                  onBlur={() => guardarPago(idx)} disabled={cerrado} style={{ flex: 2, minWidth: 0 }}>
                   {PAYMENT_METHODS.map(m => (
-                    <option key={m} value={m}>{PAYMENT_LABELS[m]}{PAYMENT_CURRENCY[m] === 'usd' ? ' ($)' : ' (Bs)'}</option>
+                    <option key={m} value={m}>{PAYMENT_LABELS[m]} ({PAYMENT_CURRENCY[m] === 'usd' ? '$' : 'Bs'})</option>
                   ))}
                 </select>
-                <input type="number" className="form-control" placeholder="0.00" value={row.amount}
-                  onChange={e => updatePaymentRow(idx, 'amount', e.target.value)}
-                  onBlur={() => savePaymentRow(idx)} disabled={closed}
-                  step="0.01" min="0" style={{ flex: '1 1 0', minWidth: 0, textAlign: 'right' }} />
-                {!closed && (
-                  <button className="btn btn-danger btn-sm btn-icon" onClick={() => deletePaymentRow(idx)} style={{ flexShrink: 0 }}>✕</button>
-                )}
+                <input type="number" className="form-control" placeholder="0.00" value={p.monto}
+                  onChange={e => actualizarPago(idx, 'monto', e.target.value)}
+                  onBlur={() => guardarPago(idx)} disabled={cerrado}
+                  step="0.01" min="0" style={{ flex: 1, minWidth: 0, textAlign: 'right' }} />
+                {!cerrado && <button className="btn btn-danger btn-sm btn-icon" onClick={() => eliminarPago(idx)}>✕</button>}
               </div>
-              <input className="form-control" placeholder="Referencia / Nota (opcional)"
-                value={row.notes} onChange={e => updatePaymentRow(idx, 'notes', e.target.value)}
-                onBlur={() => savePaymentRow(idx)} disabled={closed} style={{ fontSize: '.85rem' }} />
+              <input className="form-control" placeholder="Referencia (opcional)"
+                value={p.referencia} onChange={e => actualizarPago(idx, 'referencia', e.target.value)}
+                onBlur={() => guardarPago(idx)} disabled={cerrado} style={{ fontSize: '.85rem' }} />
             </div>
           ))}
         </div>
       </div>
 
-      {/* Totales de pagos */}
+      {/* Totales pagos */}
       <div className="grid-2 mb-4">
         <div className="stat-card" style={{ borderColor: 'var(--orange)' }}>
-          <div className="stat-label">Venta Total Bs</div>
+          <div className="stat-label">Total Pagos Bs</div>
           <div className="stat-value" style={{ color: 'var(--orange)', fontSize: '1.3rem' }}>{fmtBs(totalBs)}</div>
-          <div className="stat-sub">Tasa: {rateNum > 0 ? `Bs.${rateNum}` : 'Sin tasa'}</div>
         </div>
         <div className="stat-card" style={{ borderColor: 'var(--success)' }}>
-          <div className="stat-label">Venta Total $</div>
+          <div className="stat-label">Total Pagos $</div>
           <div className="stat-value" style={{ color: 'var(--success)', fontSize: '1.3rem' }}>{fmtUsd(totalUsd)}</div>
-          <div className="stat-sub">Margen: {margin.toFixed(1)}%</div>
         </div>
       </div>
 
-      {/* Platos y Bebidas Vendidos */}
+      {/* Platos vendidos */}
       <div className="card mb-4">
         <div className="card-header">
-          <span>🍽️ Platos y Bebidas Vendidos</span>
-          {!closed && (
-            <button className="btn btn-primary btn-sm"
-              onClick={() => { setShowMenu(true); setMenuSearch(''); setPending(null) }}>
+          <span>🍽️ Platos Vendidos</span>
+          {!cerrado && (
+            <button className="btn btn-primary btn-sm" onClick={() => { setShowMenu(true); setBusqueda(''); setPending(null) }}>
               + Agregar
             </button>
           )}
         </div>
-        {ventaItems.length > 0 ? (
+        {ventas.length > 0 ? (
           <div className="table-wrap">
             <table className="table">
               <thead>
                 <tr>
                   <th>Plato</th>
                   <th style={{ textAlign: 'center' }}>Cant</th>
-                  <th style={{ textAlign: 'right' }}>Precio</th>
+                  <th style={{ textAlign: 'right' }}>Precio $</th>
                   <th style={{ textAlign: 'right' }}>Subtotal Bs</th>
-                  {!closed && <th />}
+                  {!cerrado && <th />}
                 </tr>
               </thead>
               <tbody>
-                {ventaItems.map(item => (
-                  <tr key={item.id}>
-                    <td style={{ fontWeight: 600 }}>{item.nombre}</td>
-                    <td style={{ textAlign: 'center' }}>{item.cantidad}</td>
+                {ventas.map(v => (
+                  <tr key={v.id}>
+                    <td style={{ fontWeight: 600 }}>{v.nombre}</td>
+                    <td style={{ textAlign: 'center' }}>{v.cantidad}</td>
                     <td style={{ textAlign: 'right' }}>
-                      <div style={{ fontWeight: 700 }}>{fmtUsd(item.precio)}</div>
-                      {rateNum > 0 && <div className="text-xs text-muted">{fmtBs(Number(item.precio) * rateNum)}</div>}
+                      <div style={{ fontWeight: 700 }}>{fmtUsd(v.precio)}</div>
+                      {tasaNum > 0 && <div className="text-xs text-muted">{fmtBs(Number(v.precio) * tasaNum)}</div>}
                     </td>
                     <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                      {rateNum > 0 ? fmtBs(Number(item.precio) * rateNum * Number(item.cantidad)) : '—'}
+                      {tasaNum > 0 ? fmtBs(Number(v.precio) * tasaNum * Number(v.cantidad)) : '—'}
                     </td>
-                    {!closed && (
-                      <td><button className="btn btn-danger btn-sm btn-icon" onClick={() => removeItem(item.id)}>✕</button></td>
-                    )}
+                    {!cerrado && <td><button className="btn btn-danger btn-sm btn-icon" onClick={() => eliminarVenta(v.id)}>✕</button></td>}
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr style={{ background: 'var(--gray-50)' }}>
                   <td colSpan={3} style={{ fontWeight: 700, paddingLeft: '.75rem' }}>Total platos</td>
-                  <td style={{ textAlign: 'right', fontWeight: 700 }}>
-                    {rateNum > 0 ? fmtBs(totalVentaBs) : '—'}
-                  </td>
-                  {!closed && <td />}
+                  <td style={{ textAlign: 'right', fontWeight: 700 }}>{tasaNum > 0 ? fmtBs(totalVentaBs) : '—'}</td>
+                  {!cerrado && <td />}
                 </tr>
               </tfoot>
             </table>
           </div>
         ) : (
-          <div className="empty-state">
-            <div className="icon">🍽️</div>
-            <p>No hay ventas registradas aún</p>
-          </div>
+          <div className="empty-state"><div className="icon">🍽️</div><p>Sin ventas aún</p></div>
         )}
       </div>
 
-      {/* Cierre */}
-      {!closed && (
-        <button className="btn btn-dark btn-block btn-lg mb-4" onClick={() => setShowClose(true)}>
-          🔒 Cerrar Caja del Día
-        </button>
-      )}
+      {/* Cerrar caja */}
+      {!cerrado
+        ? <button className="btn btn-dark btn-block btn-lg mb-4" onClick={() => setShowCierre(true)}>🔒 Cerrar Caja</button>
+        : <div className="alert alert-success">✅ Caja cerrada{caja.closed_at ? ` a las ${new Date(caja.closed_at).toLocaleTimeString('es-VE')}` : ''}</div>
+      }
 
-      {closed && (
-        <div className="alert alert-success">
-          ✅ Caja cerrada el {fmtDate(register.closed_at)}
-          {register.notes && <p className="mt-1 text-sm">{register.notes}</p>}
-        </div>
-      )}
-
-      {/* ── Modal: Seleccionar plato del menú ── */}
+      {/* ─── Modal: Menú de platos ─── */}
       {showMenu && (
         <div className="modal-overlay" onClick={() => setShowMenu(false)}>
-          <div
-            className="modal"
-            style={{ maxHeight: '88vh', display: 'flex', flexDirection: 'column', padding: 0 }}
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Header */}
+          <div className="modal" style={{ maxHeight: '88vh', display: 'flex', flexDirection: 'column', padding: 0 }}
+            onClick={e => e.stopPropagation()}>
             <div className="modal-header" style={{ padding: '.75rem 1rem', flexShrink: 0 }}>
-              <span className="modal-title">🍽️ Seleccionar Plato</span>
+              <span className="modal-title">🍽️ Agregar Plato</span>
               <button className="btn btn-sm" onClick={() => setShowMenu(false)}>✕</button>
             </div>
-
-            {/* Buscador */}
             <div style={{ padding: '.5rem 1rem', borderBottom: '1px solid var(--gray-100)', flexShrink: 0 }}>
-              <input
-                className="form-control"
-                placeholder="🔍 Buscar plato..."
-                value={menuSearch}
-                onChange={e => { setMenuSearch(e.target.value); setPending(null) }}
-                autoFocus
-              />
+              <input className="form-control" placeholder="🔍 Buscar..." value={busqueda}
+                onChange={e => { setBusqueda(e.target.value); setPending(null) }} autoFocus />
             </div>
-
-            {/* Lista de platos (scrollable) */}
             <div style={{ flex: 1, overflowY: 'auto' }}>
-              {filteredDishes ? (
-                filteredDishes.length > 0
-                  ? filteredDishes.map(dish => (
-                      <DishRow key={dish.id} dish={dish}
-                        selected={pending?.dish.id === dish.id}
-                        onSelect={() => setPending(p => p?.dish.id === dish.id ? null : { dish, qty: 1 })} />
-                    ))
-                  : <p className="text-sm text-muted" style={{ textAlign: 'center', padding: '2rem' }}>
-                      Sin resultados para "{menuSearch}"
-                    </p>
-              ) : (
-                categories.map(cat => (
-                  <div key={cat}>
-                    <div style={{
-                      padding: '.35rem 1rem',
-                      background: 'var(--gray-50)',
-                      fontSize: '.72rem', fontWeight: 700,
-                      color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.07em',
-                    }}>
-                      {catLabel(cat)}
+              {platosVisibles
+                ? (platosVisibles.length > 0
+                    ? platosVisibles.map(p => <PlatoRow key={p.id} plato={p} selected={pending?.plato.id === p.id}
+                        onSelect={() => setPending(x => x?.plato.id === p.id ? null : { plato: p, qty: 1 })} />)
+                    : <p className="text-sm text-muted text-center" style={{ padding: '2rem' }}>Sin resultados</p>)
+                : categorias.map(cat => (
+                    <div key={cat}>
+                      <div style={{ padding: '.3rem 1rem', background: 'var(--gray-50)', fontSize: '.72rem', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.07em' }}>
+                        {cat}
+                      </div>
+                      {porCategoria[cat]?.map(p => (
+                        <PlatoRow key={p.id} plato={p} selected={pending?.plato.id === p.id}
+                          onSelect={() => setPending(x => x?.plato.id === p.id ? null : { plato: p, qty: 1 })} />
+                      ))}
                     </div>
-                    {byCategory[cat]?.map(dish => (
-                      <DishRow key={dish.id} dish={dish}
-                        selected={pending?.dish.id === dish.id}
-                        onSelect={() => setPending(p => p?.dish.id === dish.id ? null : { dish, qty: 1 })} />
-                    ))}
-                  </div>
-                ))
-              )}
+                  ))
+              }
             </div>
-
-            {/* Panel de confirmación — aparece al seleccionar un plato */}
             {pending && (
-              <div style={{
-                borderTop: '2px solid var(--orange)',
-                padding: '.75rem 1rem',
-                background: 'var(--cream)',
-                flexShrink: 0,
-              }}>
-                <div style={{ fontWeight: 700, marginBottom: '.5rem', color: 'var(--dark)' }}>
-                  {pending.dish.name}
-                </div>
+              <div style={{ borderTop: '2px solid var(--orange)', padding: '.75rem 1rem', background: 'var(--cream)', flexShrink: 0 }}>
+                <div style={{ fontWeight: 700, marginBottom: '.4rem' }}>{pending.plato.nombre}</div>
                 <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
                   <span className="text-sm text-muted" style={{ flex: 1 }}>
-                    {fmtUsd(pending.dish.price_bs)}
-                    {rateNum > 0 && <span> ({fmtBs(pending.dish.price_bs * rateNum)})</span>}
-                    {' '}× {pending.qty} = <strong>{fmtUsd(pending.dish.price_bs * pending.qty)}</strong>
-                    {rateNum > 0 && <strong> ({fmtBs(pending.dish.price_bs * rateNum * pending.qty)})</strong>}
+                    {fmtUsd(pending.plato.precio)}
+                    {tasaNum > 0 && <span> · {fmtBs(pending.plato.precio * tasaNum)}</span>}
+                    {' '}× {pending.qty} = <strong>{fmtUsd(pending.plato.precio * pending.qty)}</strong>
                   </span>
                   <button className="btn btn-sm btn-secondary" style={{ width: 32, padding: 0 }}
                     onClick={() => setPending(p => ({ ...p, qty: Math.max(1, p.qty - 1) }))}>−</button>
-                  <span style={{ minWidth: 28, textAlign: 'center', fontWeight: 700, fontSize: '1rem' }}>
-                    {pending.qty}
-                  </span>
+                  <span style={{ minWidth: 28, textAlign: 'center', fontWeight: 700 }}>{pending.qty}</span>
                   <button className="btn btn-sm btn-secondary" style={{ width: 32, padding: 0 }}
                     onClick={() => setPending(p => ({ ...p, qty: p.qty + 1 }))}>+</button>
-                  <button className="btn btn-primary btn-sm" onClick={addItem}
-                    disabled={addingItem} style={{ minWidth: 90 }}>
-                    {addingItem ? '...' : '✓ Agregar'}
+                  <button className="btn btn-primary btn-sm" onClick={agregarPlato} disabled={addingPlato} style={{ minWidth: 80 }}>
+                    {addingPlato ? '...' : '✓ Agregar'}
                   </button>
                 </div>
               </div>
@@ -507,108 +407,84 @@ export default function Caja() {
         </div>
       )}
 
-      {/* ── Modal: Cerrar día ── */}
-      {showClose && (
-        <div className="modal-overlay" onClick={() => setShowClose(false)}>
+      {/* ─── Modal: Cerrar caja ─── */}
+      {showCierre && (
+        <div className="modal-overlay" onClick={() => setShowCierre(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <span className="modal-title">🔒 Confirmar cierre de caja</span>
-              <button className="btn btn-sm" onClick={() => setShowClose(false)}>✕</button>
+              <span className="modal-title">🔒 Cerrar Caja</span>
+              <button className="btn btn-sm" onClick={() => setShowCierre(false)}>✕</button>
             </div>
             <div className="modal-body">
-              <div className="alert alert-warning mb-4">
-                Esta acción cerrará la caja del día. No podrás modificar los datos después.
-              </div>
+              <div className="alert alert-warning mb-3">Esta acción cerrará la caja del día. No se podrá modificar después.</div>
               <div style={{ background: 'var(--gray-50)', borderRadius: 8, padding: '1rem', marginBottom: '1rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.4rem' }}>
-                  <span>Venta Total Bs</span><strong>{fmtBs(totalBs)}</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.4rem' }}>
-                  <span>Venta Total $</span><strong>{fmtUsd(totalUsd)}</strong>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.35rem' }}>
+                  <span>Total Bs</span><strong>{fmtBs(totalBs)}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Margen estimado</span>
-                  <strong style={{ color: 'var(--success)' }}>{margin.toFixed(1)}%</strong>
+                  <span>Total $</span><strong>{fmtUsd(totalUsd)}</strong>
                 </div>
               </div>
               <div className="form-group">
-                <label className="form-label">Notas del cierre (opcional)</label>
-                <textarea className="form-control" rows={2} value={closingNote}
-                  onChange={e => setClosingNote(e.target.value)} placeholder="Observaciones del día..." />
+                <label className="form-label">Notas (opcional)</label>
+                <textarea className="form-control" rows={2} value={notasCierre}
+                  onChange={e => setNotasCierre(e.target.value)} placeholder="Observaciones..." />
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setShowClose(false)}>Cancelar</button>
-              <button className="btn btn-dark" onClick={closeDay} disabled={saving === 'close'}>
-                {saving === 'close' ? '...' : '🔒 Cerrar Caja'}
+              <button className="btn btn-secondary" onClick={() => setShowCierre(false)}>Cancelar</button>
+              <button className="btn btn-dark" onClick={cerrarCaja} disabled={cerrando}>
+                {cerrando ? '...' : '🔒 Confirmar Cierre'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Modal: Cobrar orden de mesa ── */}
-      {cobrarOrder && (
-        <div className="modal-overlay" onClick={() => setCobrarOrder(null)}>
+      {/* ─── Modal: Cobrar orden de mesa ─── */}
+      {cobrarOrden && (
+        <div className="modal-overlay" onClick={() => setCobrarOrden(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <div>
-                <div className="modal-title">
-                  💵 Cobrar — {cobrarOrder.table_name || `Mesa ${cobrarOrder.table_number}`}
-                </div>
-                <div className="text-sm text-muted">Mesero: {cobrarOrder.waiter_name}</div>
+                <div className="modal-title">💵 Cobrar Mesa {cobrarOrden.mesas?.numero}</div>
               </div>
-              <button className="btn btn-sm" onClick={() => setCobrarOrder(null)}>✕</button>
+              <button className="btn btn-sm" onClick={() => setCobrarOrden(null)}>✕</button>
             </div>
             <div className="modal-body">
               <div className="table-wrap mb-3">
                 <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Ítem</th>
-                      <th style={{ textAlign: 'center' }}>Cant</th>
-                      <th style={{ textAlign: 'right' }}>Total</th>
-                    </tr>
-                  </thead>
+                  <thead><tr><th>Ítem</th><th style={{ textAlign: 'center' }}>Cant</th><th style={{ textAlign: 'right' }}>Total</th></tr></thead>
                   <tbody>
-                    {cobrarOrder.orden_items?.map(item => (
-                      <tr key={item.id}>
-                        <td>
-                          <div style={{ fontWeight: 600 }}>{item.dish_name}</div>
-                          {item.notes && <div className="text-xs text-muted">{item.notes}</div>}
+                    {cobrarOrden.orden_items?.map(i => (
+                      <tr key={i.id}>
+                        <td style={{ fontWeight: 600 }}>{i.nombre}
+                          {i.notas && <div className="text-xs text-muted">{i.notas}</div>}
                         </td>
-                        <td style={{ textAlign: 'center' }}>{item.quantity}</td>
-                        <td style={{ textAlign: 'right' }}>{fmtBs(Number(item.price_bs) * item.quantity)}</td>
+                        <td style={{ textAlign: 'center' }}>{i.cantidad}</td>
+                        <td style={{ textAlign: 'right' }}>{fmtUsd(Number(i.precio) * Number(i.cantidad))}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
               <div style={{ background: 'var(--gray-50)', borderRadius: 8, padding: '.85rem 1rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.3rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ fontWeight: 700 }}>Total</span>
-                  <span style={{ fontWeight: 800, fontSize: '1.2rem', color: 'var(--orange)' }}>
-                    {fmtBs(cobrarOrder.total_bs)}
-                  </span>
+                  <span style={{ fontWeight: 800, fontSize: '1.2rem', color: 'var(--orange)' }}>{fmtUsd(cobrarOrden.total)}</span>
                 </div>
-                {cobrarOrder.split_count > 1 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span className="text-sm text-muted">Por persona ({cobrarOrder.split_count})</span>
-                    <span style={{ fontWeight: 700, color: 'var(--brown)' }}>
-                      {fmtBs(Number(cobrarOrder.total_bs) / cobrarOrder.split_count)}
-                    </span>
+                {tasaNum > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '.25rem' }}>
+                    <span className="text-sm text-muted">Equivalente Bs</span>
+                    <span style={{ fontWeight: 700, color: 'var(--brown)' }}>{fmtBs(Number(cobrarOrden.total) * tasaNum)}</span>
                   </div>
                 )}
               </div>
-              <div className="alert alert-info mt-3">
-                Al confirmar, los ítems se agregarán automáticamente a las ventas del día y la mesa quedará libre.
-              </div>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setCobrarOrder(null)}>Cancelar</button>
-              <button className="btn btn-success" onClick={() => cobrarOrden(cobrarOrder.id)}
-                disabled={cobrandoId === cobrarOrder.id} style={{ minWidth: 140 }}>
-                {cobrandoId === cobrarOrder.id ? '...' : '✓ Confirmar Cobro'}
+              <button className="btn btn-secondary" onClick={() => setCobrarOrden(null)}>Cancelar</button>
+              <button className="btn btn-success" onClick={() => confirmarCobro(cobrarOrden.id)} disabled={cobrandoId === cobrarOrden.id}>
+                {cobrandoId === cobrarOrden.id ? '...' : '✓ Cobrar'}
               </button>
             </div>
           </div>
@@ -618,26 +494,17 @@ export default function Caja() {
   )
 }
 
-// ── Fila de plato en el selector de menú ──────────────────────
-function DishRow({ dish, selected, onSelect }) {
+function PlatoRow({ plato, selected, onSelect }) {
   return (
-    <button
-      onClick={onSelect}
-      style={{
-        width: '100%', display: 'flex', alignItems: 'center', gap: '.75rem',
-        padding: '.65rem 1rem', textAlign: 'left', cursor: 'pointer',
-        background: selected ? 'rgba(243,150,57,.1)' : 'transparent',
-        border: 'none', borderBottom: '1px solid var(--gray-100)',
-        outline: selected ? '2px solid var(--orange)' : 'none',
-        outlineOffset: -2,
-      }}
-    >
-      <div style={{ flex: 1, fontWeight: selected ? 700 : 400, color: 'var(--dark)' }}>
-        {dish.name}
-      </div>
-      <div style={{ fontWeight: 700, color: 'var(--orange)', flexShrink: 0 }}>
-        {fmtUsd(dish.price_bs)}
-      </div>
+    <button onClick={onSelect} style={{
+      width: '100%', display: 'flex', alignItems: 'center', gap: '.75rem',
+      padding: '.65rem 1rem', textAlign: 'left', cursor: 'pointer',
+      background: selected ? 'rgba(243,150,57,.1)' : 'transparent',
+      border: 'none', borderBottom: '1px solid var(--gray-100)',
+      outline: selected ? '2px solid var(--orange)' : 'none', outlineOffset: -2,
+    }}>
+      <div style={{ flex: 1, fontWeight: selected ? 700 : 400 }}>{plato.nombre}</div>
+      <div style={{ fontWeight: 700, color: 'var(--orange)', flexShrink: 0 }}>{fmtUsd(plato.precio)}</div>
       <span style={{ color: selected ? 'var(--orange)' : 'var(--gray-300)', fontSize: '1.1rem', flexShrink: 0 }}>
         {selected ? '✓' : '+'}
       </span>

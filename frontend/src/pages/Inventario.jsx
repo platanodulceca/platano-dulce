@@ -3,87 +3,103 @@ import api from '../services/api'
 import { fmtDate, CATEGORY_LABELS } from '../utils/helpers'
 
 const CATEGORY_ICONS = {
-  viveres_barra_bebidas:   '🛒',
-  frutas_vegetales:        '🥬',
-  carniceria_frigorifico:  '🥩',
+  viveres_barra_bebidas:  '🛒',
+  frutas_vegetales:       '🥬',
+  carniceria_frigorifico: '🥩',
+}
+
+const getEstado = (p) => {
+  const fisica = p.cantidad_fisica
+  if (fisica === null || fisica === undefined) return 'sin_conteo'
+  if (fisica <= 0)       return 'agotado'
+  if (p.bajo_minimo)     return 'reponer'
+  return 'ok'
 }
 
 export default function Inventario() {
-  const [inventory, setInventory] = useState([])
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(null)
-  const [search, setSearch] = useState('')
-  const [filterCat, setFilterCat] = useState('all')
-  const [filterStatus, setFilterStatus] = useState('all')
-  const [editCounts, setEditCounts] = useState({})
-  const [showAdd, setShowAdd] = useState(false)
-  const [newProduct, setNewProduct] = useState({ name:'', category:'viveres_barra_bebidas', unit:'kg', minimum_stock:'', current_stock:'', cost_per_unit:'' })
+  const [inventario, setInventario] = useState([])
+  const [fecha, setFecha]           = useState(new Date().toISOString().split('T')[0])
+  const [loading, setLoading]       = useState(true)
+  const [saving, setSaving]         = useState(null)
+  const [busqueda, setBusqueda]     = useState('')
+  const [filterCat, setFilterCat]   = useState('all')
+  const [filterEstado, setFilterEstado] = useState('all')
+  const [editConteos, setEditConteos]   = useState({})
+  const [showAdd, setShowAdd]           = useState(false)
+  const [nuevoProducto, setNuevoProducto] = useState({
+    nombre: '', categoria: 'viveres_barra_bebidas', unidad: 'kg', stock_minimo: ''
+  })
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await api.get('/inventario/today')
-      setInventory(res.data.inventory || [])
-      const counts = {}
-      res.data.inventory?.forEach(p => { counts[p.id] = p.physical_count?.toString() || '0' })
-      setEditCounts(counts)
+      const res = await api.get('/inventario/conteo/hoy')
+      const items = res.data.inventario || []
+      setInventario(items)
+      setFecha(res.data.fecha || new Date().toISOString().split('T')[0])
+      const conteos = {}
+      items.forEach(p => { conteos[p.id] = p.cantidad_fisica?.toString() ?? '' })
+      setEditConteos(conteos)
     } catch {}
     setLoading(false)
   }, [])
 
   useEffect(() => { load() }, [load])
 
-  const saveCount = async (productId) => {
-    setSaving(productId)
+  const guardarConteo = async (productoId) => {
+    setSaving(productoId)
+    const p = inventario.find(x => x.id === productoId)
+    const cantFisica = parseFloat(editConteos[productoId]) || 0
+    const cantTeorica = p?.conteo_hoy?.cantidad_teorica ?? 0
     try {
-      await api.post('/inventario/count', {
-        product_id: productId,
-        physical_count: parseFloat(editCounts[productId]) || 0,
-        date
+      await api.post('/inventario/conteo', {
+        inventario_id:    productoId,
+        cantidad_fisica:  cantFisica,
+        cantidad_teorica: cantTeorica,
+        diferencia:       cantFisica - cantTeorica,
       })
-      setInventory(inv => inv.map(p => {
-        if (p.id !== productId) return p
-        const physical = parseFloat(editCounts[productId]) || 0
-        let status = 'ok'
-        if (physical <= 0) status = 'agotado'
-        else if (physical <= p.minimum_stock) status = 'reponer'
-        return { ...p, physical_count: physical, status }
+      setInventario(inv => inv.map(x => {
+        if (x.id !== productoId) return x
+        const bajo_minimo = cantFisica < x.stock_minimo
+        return { ...x, cantidad_fisica: cantFisica, bajo_minimo }
       }))
     } catch {}
     setSaving(null)
   }
 
-  const addProduct = async () => {
+  const agregarProducto = async () => {
     try {
-      await api.post('/inventario/products', {
-        ...newProduct,
-        minimum_stock: parseFloat(newProduct.minimum_stock) || 0,
-        current_stock: parseFloat(newProduct.current_stock) || 0,
-        cost_per_unit: parseFloat(newProduct.cost_per_unit) || 0,
+      await api.post('/inventario', {
+        nombre:      nuevoProducto.nombre,
+        categoria:   nuevoProducto.categoria,
+        unidad:      nuevoProducto.unidad,
+        stock_minimo: parseFloat(nuevoProducto.stock_minimo) || 0,
       })
       setShowAdd(false)
-      setNewProduct({ name:'', category:'viveres_barra_bebidas', unit:'kg', minimum_stock:'', current_stock:'', cost_per_unit:'' })
+      setNuevoProducto({ nombre: '', categoria: 'viveres_barra_bebidas', unidad: 'kg', stock_minimo: '' })
       load()
     } catch (err) {
       alert(err.response?.data?.error || 'Error al agregar')
     }
   }
 
-  const filtered = inventory.filter(p => {
-    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase())
-    const matchCat = filterCat === 'all' || p.category === filterCat
-    const matchStatus = filterStatus === 'all' || p.status === filterStatus
-    return matchSearch && matchCat && matchStatus
+  const filtrado = inventario.filter(p => {
+    const matchBusqueda = p.nombre.toLowerCase().includes(busqueda.toLowerCase())
+    const matchCat    = filterCat    === 'all' || p.categoria === filterCat
+    const matchEstado = filterEstado === 'all' || getEstado(p) === filterEstado
+    return matchBusqueda && matchCat && matchEstado
   })
 
   const grouped = Object.keys(CATEGORY_LABELS).map(cat => ({
     cat,
-    items: filtered.filter(p => p.category === cat)
+    items: filtrado.filter(p => p.categoria === cat)
   })).filter(g => g.items.length > 0)
 
   const counts = { ok: 0, reponer: 0, agotado: 0 }
-  inventory.forEach(p => { if (counts[p.status] !== undefined) counts[p.status]++ })
+  inventario.forEach(p => {
+    const e = getEstado(p)
+    if (counts[e] !== undefined) counts[e]++
+  })
 
   if (loading) return <div className="loading-screen"><div className="spinner" /></div>
 
@@ -92,41 +108,30 @@ export default function Inventario() {
       <div className="page-header">
         <div>
           <h1 className="page-title">📦 Inventario</h1>
-          <p className="text-sm text-muted">{fmtDate(date)}</p>
+          <p className="text-sm text-muted">{fmtDate(fecha)}</p>
         </div>
         <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>+ Producto</button>
       </div>
 
-      {/* Resumen semáforo */}
       <div className="grid-3 mb-4">
         {[
           { key: 'ok',      label: 'OK',      color: 'var(--success)', emoji: '✅' },
           { key: 'reponer', label: 'REPONER', color: 'var(--warning)', emoji: '⚠️' },
           { key: 'agotado', label: 'AGOTADO', color: 'var(--coral)',   emoji: '🔴' },
         ].map(s => (
-          <div
-            key={s.key}
-            className="stat-card"
-            style={{ borderColor: s.color, cursor: 'pointer', opacity: filterStatus === s.key ? 1 : .7 }}
-            onClick={() => setFilterStatus(f => f === s.key ? 'all' : s.key)}
-          >
+          <div key={s.key} className="stat-card"
+            style={{ borderColor: s.color, cursor: 'pointer', opacity: filterEstado === s.key ? 1 : .7 }}
+            onClick={() => setFilterEstado(f => f === s.key ? 'all' : s.key)}>
             <div className="stat-label">{s.emoji} {s.label}</div>
             <div className="stat-value" style={{ color: s.color, fontSize: '2rem' }}>{counts[s.key]}</div>
           </div>
         ))}
       </div>
 
-      {/* Filtros */}
       <div className="card mb-4">
         <div className="card-body" style={{ padding: '.75rem', display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-          <input
-            type="search"
-            className="form-control"
-            placeholder="Buscar producto..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ flex: 1, minWidth: 150 }}
-          />
+          <input type="search" className="form-control" placeholder="Buscar producto..."
+            value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ flex: 1, minWidth: 150 }} />
           <select className="form-control" value={filterCat} onChange={e => setFilterCat(e.target.value)} style={{ flex: '0 0 auto' }}>
             <option value="all">Todas las categorías</option>
             {Object.entries(CATEGORY_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
@@ -134,7 +139,6 @@ export default function Inventario() {
         </div>
       </div>
 
-      {/* Tablas por categoría */}
       {grouped.length === 0 ? (
         <div className="empty-state"><div className="icon">📦</div><p>No hay productos</p></div>
       ) : (
@@ -160,42 +164,26 @@ export default function Inventario() {
                   {items.map(p => (
                     <tr key={p.id}>
                       <td>
-                        <div style={{ fontWeight: 600 }}>{p.name}</div>
-                        <div className="text-xs text-muted">Mín: {p.minimum_stock} {p.unit}</div>
+                        <div style={{ fontWeight: 600 }}>{p.nombre}</div>
+                        <div className="text-xs text-muted">Mín: {p.stock_minimo} {p.unidad}</div>
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={editCounts[p.id] ?? p.physical_count ?? ''}
-                          onChange={e => setEditCounts(c => ({ ...c, [p.id]: e.target.value }))}
-                          style={{
-                            width: 80,
-                            textAlign: 'right',
-                            border: '2px solid var(--gray-300)',
-                            borderRadius: 6,
-                            padding: '.35rem .5rem',
-                            fontSize: '.9rem',
-                          }}
+                        <input type="number" step="0.01" min="0"
+                          value={editConteos[p.id] ?? ''}
+                          onChange={e => setEditConteos(c => ({ ...c, [p.id]: e.target.value }))}
+                          style={{ width: 80, textAlign: 'right', border: '2px solid var(--gray-300)', borderRadius: 6, padding: '.35rem .5rem', fontSize: '.9rem' }}
                         />
-                        <span className="text-xs text-muted ml-1" style={{ marginLeft: 4 }}>{p.unit}</span>
+                        <span className="text-xs text-muted" style={{ marginLeft: 4 }}>{p.unidad}</span>
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        {Number(p.theoretical_count).toFixed(2)} {p.unit}
+                        {Number(p.conteo_hoy?.cantidad_teorica ?? 0).toFixed(2)} {p.unidad}
                       </td>
-                      <td style={{ textAlign: 'right', color: Number(p.difference) < 0 ? 'var(--coral)' : 'inherit', fontWeight: 600 }}>
-                        {Number(p.difference) >= 0 ? '+' : ''}{Number(p.difference).toFixed(2)}
+                      <td style={{ textAlign: 'right', color: Number(p.conteo_hoy?.diferencia ?? 0) < 0 ? 'var(--coral)' : 'inherit', fontWeight: 600 }}>
+                        {Number(p.conteo_hoy?.diferencia ?? 0) >= 0 ? '+' : ''}{Number(p.conteo_hoy?.diferencia ?? 0).toFixed(2)}
                       </td>
+                      <td><Semaforo estado={getEstado(p)} /></td>
                       <td>
-                        <Semaforo status={p.status} />
-                      </td>
-                      <td>
-                        <button
-                          className="btn btn-primary btn-sm"
-                          onClick={() => saveCount(p.id)}
-                          disabled={saving === p.id}
-                        >
+                        <button className="btn btn-primary btn-sm" onClick={() => guardarConteo(p.id)} disabled={saving === p.id}>
                           {saving === p.id ? '...' : '💾'}
                         </button>
                       </td>
@@ -208,7 +196,6 @@ export default function Inventario() {
         ))
       )}
 
-      {/* Modal: Agregar producto */}
       {showAdd && (
         <div className="modal-overlay" onClick={() => setShowAdd(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
@@ -219,40 +206,35 @@ export default function Inventario() {
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
               <div className="form-group">
                 <label className="form-label">Nombre *</label>
-                <input className="form-control" value={newProduct.name} onChange={e => setNewProduct(p => ({ ...p, name: e.target.value }))} />
+                <input className="form-control" value={nuevoProducto.nombre}
+                  onChange={e => setNuevoProducto(p => ({ ...p, nombre: e.target.value }))} />
               </div>
               <div className="form-group">
                 <label className="form-label">Categoría</label>
-                <select className="form-control" value={newProduct.category} onChange={e => setNewProduct(p => ({ ...p, category: e.target.value }))}>
+                <select className="form-control" value={nuevoProducto.categoria}
+                  onChange={e => setNuevoProducto(p => ({ ...p, categoria: e.target.value }))}>
                   {Object.entries(CATEGORY_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               </div>
               <div className="grid-2">
                 <div className="form-group">
                   <label className="form-label">Unidad</label>
-                  <select className="form-control" value={newProduct.unit} onChange={e => setNewProduct(p => ({ ...p, unit: e.target.value }))}>
+                  <select className="form-control" value={nuevoProducto.unidad}
+                    onChange={e => setNuevoProducto(p => ({ ...p, unidad: e.target.value }))}>
                     {['kg','lt','g','ml','und','mazo','caja','bolsa','lata'].map(u => <option key={u} value={u}>{u}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Costo / unidad (Bs)</label>
-                  <input type="number" className="form-control" value={newProduct.cost_per_unit} onChange={e => setNewProduct(p => ({ ...p, cost_per_unit: e.target.value }))} step="0.01" min="0" />
-                </div>
-              </div>
-              <div className="grid-2">
-                <div className="form-group">
                   <label className="form-label">Stock mínimo</label>
-                  <input type="number" className="form-control" value={newProduct.minimum_stock} onChange={e => setNewProduct(p => ({ ...p, minimum_stock: e.target.value }))} step="0.01" min="0" />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Stock actual</label>
-                  <input type="number" className="form-control" value={newProduct.current_stock} onChange={e => setNewProduct(p => ({ ...p, current_stock: e.target.value }))} step="0.01" min="0" />
+                  <input type="number" className="form-control" value={nuevoProducto.stock_minimo}
+                    onChange={e => setNuevoProducto(p => ({ ...p, stock_minimo: e.target.value }))}
+                    step="0.01" min="0" />
                 </div>
               </div>
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setShowAdd(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={addProduct} disabled={!newProduct.name}>Agregar</button>
+              <button className="btn btn-primary" onClick={agregarProducto} disabled={!nuevoProducto.nombre}>Agregar</button>
             </div>
           </div>
         </div>
@@ -261,12 +243,12 @@ export default function Inventario() {
   )
 }
 
-function Semaforo({ status }) {
-  const labels = { ok: 'OK', reponer: 'REPONER', agotado: 'AGOTADO' }
+function Semaforo({ estado }) {
+  const labels = { ok: 'OK', reponer: 'REPONER', agotado: 'AGOTADO', sin_conteo: 'S/C' }
   return (
-    <div className={`semaforo ${status}`}>
+    <div className={`semaforo ${estado}`}>
       <div className="semaforo-dot" />
-      {labels[status] || status}
+      {labels[estado] || estado}
     </div>
   )
 }
