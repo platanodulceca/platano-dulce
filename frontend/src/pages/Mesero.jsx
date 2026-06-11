@@ -84,6 +84,7 @@ export default function Mesero() {
       await Promise.all(items.map(i => api.post(`/ordenes/${ordenId}/items`, {
         nombre:   i.plato.nombre,
         precio:   i.plato.precio,
+        costo:    i.plato.costo || 0,
         cantidad: i.cantidad,
         notas:    i.notas || null,
       })))
@@ -94,7 +95,9 @@ export default function Mesero() {
       await cargar()
       cerrarModal()
     } catch (err) {
-      alert(err.response?.data?.error || 'Error al enviar')
+      const msg = err.response?.data?.error || err.message || 'Error al enviar'
+      console.error('[enviarOrden]', err.response?.status, err.response?.data || err.message)
+      alert(msg)
     }
     setEnviando(false)
   }
