@@ -11,17 +11,17 @@ const MONEDA = {
   delivery: 'bs', propina: 'bs', vuelto: 'bs', credito: 'bs',
 }
 
-// Obtener o crear registro del día
+// Obtener o crear registro de una fecha (por defecto hoy)
 router.get('/hoy', async (req, res) => {
-  const today = new Date().toISOString().split('T')[0]
+  const fecha = req.query.fecha || new Date().toISOString().split('T')[0]
   let { data: caja } = await supabase
     .from('caja_registros')
     .select('*, caja_pagos(*), venta_items(*)')
-    .eq('fecha', today).single()
+    .eq('fecha', fecha).single()
   if (!caja) {
     const { data: nueva, error } = await supabase
       .from('caja_registros')
-      .insert({ fecha: today, tasa_bcv: 0, created_by: req.user.id })
+      .insert({ fecha, tasa_bcv: 0, created_by: req.user.id })
       .select('*, caja_pagos(*), venta_items(*)')
       .single()
     if (error) return res.status(500).json({ error: error.message })

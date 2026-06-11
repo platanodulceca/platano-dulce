@@ -6,7 +6,10 @@ import {
   ORDER_STATUS_LABELS,
 } from '../utils/helpers'
 
+const todayStr = () => new Date().toISOString().split('T')[0]
+
 export default function Caja() {
+  const [fecha, setFecha]         = useState(todayStr)
   const [caja, setCaja]           = useState(null)
   const [pagos, setPagos]         = useState([])
   const [tasa, setTasa]           = useState('')
@@ -32,6 +35,8 @@ export default function Caja() {
   const [cobrandoId, setCobrandoId]       = useState(null)
   const pollRef = useRef(null)
 
+  const esHoy = fecha === todayStr()
+
   const cargarOrdenes = useCallback(async () => {
     try {
       const res = await api.get('/ordenes/cobrar')
@@ -39,10 +44,11 @@ export default function Caja() {
     } catch {}
   }, [])
 
-  const cargarHoy = useCallback(async () => {
+  const cargarHoy = useCallback(async (f) => {
+    setLoading(true)
     try {
       const [cajaRes, platosRes] = await Promise.all([
-        api.get('/caja/hoy'),
+        api.get(`/caja/hoy?fecha=${f}`),
         api.get('/recetario'),
       ])
       const c = cajaRes.data.caja
@@ -65,11 +71,15 @@ export default function Caja() {
   }, [])
 
   useEffect(() => {
-    cargarHoy()
-    cargarOrdenes()
-    pollRef.current = setInterval(cargarOrdenes, 5000)
+    cargarHoy(fecha)
+    if (esHoy) {
+      cargarOrdenes()
+      pollRef.current = setInterval(cargarOrdenes, 5000)
+    } else {
+      setOrdenesListas([])
+    }
     return () => clearInterval(pollRef.current)
-  }, [cargarHoy, cargarOrdenes])
+  }, [fecha, cargarHoy, cargarOrdenes, esHoy])
 
   const tasaNum = parseFloat(tasa) || 0
   const cerrado = caja?.cerrado === true
@@ -161,7 +171,7 @@ export default function Caja() {
     setCobrandoId(ordenId)
     try {
       await api.put(`/ordenes/${ordenId}/cobrar`)
-      await Promise.all([cargarHoy(), cargarOrdenes()])
+      await Promise.all([cargarHoy(fecha), cargarOrdenes()])
       setCobrarOrden(null)
     } catch (err) {
       setError(err.response?.data?.error || 'Error al cobrar')
@@ -200,7 +210,20 @@ export default function Caja() {
       <div className="page-header">
         <div>
           <h1 className="page-title">💰 Caja del Día</h1>
-          <p className="text-sm text-muted">{fmtDate(caja?.fecha)}</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginTop: '.2rem' }}>
+            <input
+              type="date"
+              value={fecha}
+              max={todayStr()}
+              onChange={e => { if (e.target.value) setFecha(e.target.value) }}
+              style={{ fontSize: '.85rem', border: '1px solid var(--gray-200)', borderRadius: 6, padding: '.2rem .5rem', color: esHoy ? 'var(--gray-500)' : 'var(--orange)', fontWeight: esHoy ? 400 : 700 }}
+            />
+            {!esHoy && (
+              <button className="btn btn-sm btn-secondary" onClick={() => setFecha(todayStr())} style={{ fontSize: '.78rem' }}>
+                Hoy
+              </button>
+            )}
+          </div>
         </div>
         <span className={`badge ${cerrado ? 'badge-cerrado' : 'badge-abierto'}`}>
           {cerrado ? 'Cerrada' : 'Abierta'}
