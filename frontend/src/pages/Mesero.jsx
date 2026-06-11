@@ -18,6 +18,7 @@ export default function Mesero() {
   const [items, setItems]               = useState([])   // { plato, cantidad, notas }
   const [ordenTab, setOrdenTab]         = useState('menu')
   const [enviando, setEnviando]         = useState(false)
+  const [ubicacion, setUbicacion]       = useState('adentro')
 
   const cargar = useCallback(async () => {
     try {
@@ -84,7 +85,6 @@ export default function Mesero() {
       await Promise.all(items.map(i => api.post(`/ordenes/${ordenId}/items`, {
         nombre:   i.plato.nombre,
         precio:   i.plato.precio,
-        costo:    i.plato.costo || 0,
         cantidad: i.cantidad,
         notas:    i.notas || null,
       })))
@@ -132,8 +132,22 @@ export default function Mesero() {
 
       {/* Mesas */}
       {tab === 'mesas' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '.75rem' }}>
-          {mesas.map(m => {
+        <>
+          <div style={{ display: 'flex', gap: '.4rem', marginBottom: '.75rem' }}>
+            {[
+              { id: 'adentro', label: `Adentro (${mesas.filter(m => m.ubicacion === 'adentro').length})` },
+              { id: 'afuera',  label: `Afuera (${mesas.filter(m => m.ubicacion === 'afuera').length}) · Terraza` },
+            ].map(u => (
+              <button key={u.id} onClick={() => setUbicacion(u.id)} style={{
+                flex: 1, padding: '.5rem', border: 'none', borderRadius: 8, cursor: 'pointer',
+                fontWeight: 700, fontSize: '.85rem',
+                background: ubicacion === u.id ? 'var(--orange)' : 'var(--gray-100)',
+                color: ubicacion === u.id ? 'white' : 'var(--gray-500)',
+              }}>{u.label}</button>
+            ))}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '.75rem' }}>
+          {mesas.filter(m => m.ubicacion === ubicacion).map(m => {
             const orden = ordenes.find(o => o.mesa_id === m.id)
             const color = m.estado === 'ocupada' ? 'var(--coral)' : m.estado === 'reservada' ? 'var(--warning)' : 'var(--success)'
             const listaParaEntregar = orden?.estado === 'lista'
@@ -155,7 +169,8 @@ export default function Mesero() {
               </button>
             )
           })}
-        </div>
+          </div>
+        </>
       )}
 
       {/* Mis órdenes */}

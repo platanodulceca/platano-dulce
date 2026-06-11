@@ -53,6 +53,7 @@ router.get('/:id', async (req, res) => {
 // Crear nueva orden (borrador)
 router.post('/', requireRoles('admin', 'mesero', 'dueno'), async (req, res) => {
   const { mesa_id, personas, notas } = req.body
+  console.log('[orders POST /] body:', req.body, 'user:', req.user?.id)
 
   const { data: mesa } = await supabase
     .from('mesas')
@@ -61,25 +62,30 @@ router.post('/', requireRoles('admin', 'mesero', 'dueno'), async (req, res) => {
     .single()
   if (!mesa) return res.status(404).json({ error: 'Mesa no encontrada' })
 
+  const payload = {
+    mesa_id,
+    mesero_id: req.user.id,
+    estado:    'borrador',
+    total:     0,
+    personas:  parseInt(personas) || 1,
+    notas:     notas || null,
+  }
+  console.log('[orders POST /] inserting:', payload)
   const { data, error } = await supabase
     .from('ordenes')
-    .insert({
-      mesa_id,
-      mesero_id: req.user.id,
-      estado:    'borrador',
-      total:     0,
-      personas:  parseInt(personas) || 1,
-      notas:     notas || null,
-    })
+    .insert(payload)
     .select('*, orden_items(*), mesas(numero)')
     .single()
-  if (error) return res.status(500).json({ error: error.message })
+  if (error) {
+    console.error('[orders POST /] error:', { message: error.message, details: error.details, hint: error.hint, code: error.code })
+    return res.status(500).json({ error: error.message })
+  }
   res.status(201).json({ order: data })
 })
 
 // Agregar ítem a orden
 router.post('/:id/items', async (req, res) => {
-  const { nombre, precio, costo, cantidad, notas } = req.body
+  const { nombre, precio, cantidad, notas } = req.body
 
   const { data: orden } = await supabase
     .from('ordenes').select('estado, mesero_id').eq('id', req.params.id).single()
@@ -97,13 +103,12 @@ router.post('/:id/items', async (req, res) => {
       orden_id: req.params.id,
       nombre,
       precio:   parseFloat(precio)   || 0,
-      costo:    parseFloat(costo)    || 0,
       cantidad: parseInt(cantidad)   || 1,
       notas:    notas || null,
       estado:   'pendiente',
     })
     .select().single()
-  if (error) return res.status(500).json({ error: error.message })
+  if (error) { console.error('[orders POST /:id/items]', error); return res.status(500).json({ error: error.message }) }
   await recalcTotal(req.params.id)
   res.status(201).json({ item: data })
 })

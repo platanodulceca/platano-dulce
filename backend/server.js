@@ -15,6 +15,7 @@ import cuentasRoutes   from './routes/cuentas.js'
 import dashboardRoutes from './routes/dashboard.js'
 import mesasRoutes     from './routes/mesas.js'
 import ordersRoutes    from './routes/orders.js'
+import ordenesRoutes   from './routes/ordenes.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const isProd = process.env.NODE_ENV === 'production'
@@ -37,6 +38,7 @@ app.use('/api/cuentas',    cuentasRoutes)
 app.use('/api/dashboard',  dashboardRoutes)
 app.use('/api/mesas',      mesasRoutes)
 app.use('/api/orders',     ordersRoutes)
+app.use('/api/ordenes',    ordenesRoutes)
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', app: 'Plátano Dulce C.A.', env: process.env.NODE_ENV, time: new Date() })

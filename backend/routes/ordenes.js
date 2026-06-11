@@ -48,18 +48,21 @@ router.get('/mias', async (req, res) => {
 
 router.post('/', requireRoles('admin', 'mesero', 'dueno'), async (req, res) => {
   const { mesa_id, personas, notas } = req.body
+  console.log('[ordenes POST /] body:', req.body, 'user:', req.user?.id)
   if (!mesa_id) return res.status(400).json({ error: 'mesa_id requerido' })
+  const payload = {
+    mesa_id, mesero_id: req.user.id,
+    estado: 'pendiente', total: 0,
+    personas: parseInt(personas) || 1,
+    notas: notas || null,
+  }
+  console.log('[ordenes POST /] inserting:', payload)
   const { data, error } = await supabase
     .from('ordenes')
-    .insert({
-      mesa_id, mesero_id: req.user.id,
-      estado: 'pendiente', total: 0,
-      personas: parseInt(personas) || 1,
-      notas: notas || null,
-    })
+    .insert(payload)
     .select('*, orden_items(*), mesas(numero)').single()
   if (error) {
-    console.error('[ordenes POST /]', error)
+    console.error('[ordenes POST /] error:', { message: error.message, details: error.details, hint: error.hint, code: error.code })
     return res.status(500).json({ error: error.message })
   }
   await supabase.from('mesas').update({ estado: 'ocupada' }).eq('id', mesa_id)
@@ -91,14 +94,13 @@ router.put('/:id/estado', async (req, res) => {
 })
 
 router.post('/:id/items', async (req, res) => {
-  const { nombre, precio, costo, cantidad, notas } = req.body
+  const { nombre, precio, cantidad, notas } = req.body
   const { data: item, error } = await supabase
     .from('orden_items')
     .insert({
       orden_id: req.params.id,
       nombre,
       precio:   parseFloat(precio)   || 0,
-      costo:    parseFloat(costo)    || 0,
       cantidad: parseInt(cantidad)   || 1,
       notas:    notas || null,
       estado:   'pendiente',
