@@ -5,152 +5,94 @@ import { requireAuth, requireRoles } from '../middleware/auth.js'
 const router = Router()
 router.use(requireAuth)
 
-// Obtener lista de la semana actual
-router.get('/current', async (req, res) => {
-  const now = new Date()
-  const day = now.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  const weekStart = new Date(now)
-  weekStart.setDate(now.getDate() + diff)
-  const weekEnd = new Date(weekStart)
-  weekEnd.setDate(weekStart.getDate() + 6)
+const semanaActual = () => {
+  const d = new Date()
+  const diff = d.getDay() === 0 ? -6 : 1 - d.getDay()
+  const lunes = new Date(d)
+  lunes.setDate(d.getDate() + diff)
+  return lunes.toISOString().split('T')[0]
+}
 
-  const ws = weekStart.toISOString().split('T')[0]
-  const we = weekEnd.toISOString().split('T')[0]
-
-  const { data: list } = await supabase
+router.get('/actual', async (req, res) => {
+  const semana = semanaActual()
+  const { data } = await supabase
     .from('listas_compras')
     .select('*, listas_compras_items(*)')
-    .eq('week_start', ws)
-    .single()
-
-  res.json({ list: list || null, week_start: ws, week_end: we })
+    .eq('semana', semana).single()
+  res.json({ lista: data || null, semana })
 })
 
-// Generar lista automática basada en inventario
-router.post('/generate', requireRoles('admin', 'chef', 'dueno'), async (req, res) => {
-  const now = new Date()
-  const day = now.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  const weekStart = new Date(now)
-  weekStart.setDate(now.getDate() + diff)
-  const weekEnd = new Date(weekStart)
-  weekEnd.setDate(weekStart.getDate() + 6)
+router.post('/generar', requireRoles('admin', 'chef', 'dueno'), async (req, res) => {
+  const semana = semanaActual()
 
-  const ws = weekStart.toISOString().split('T')[0]
-  const we = weekEnd.toISOString().split('T')[0]
+  const { data: productos } = await supabase
+    .from('inventario').select('*').eq('activo', true)
 
-  const { data: products } = await supabase
-    .from('inventario')
-    .select('*')
-    .eq('active', true)
+  // Obtener el último conteo por producto
+  const { data: conteos } = await supabase
+    .from('conteos_inventario')
+    .select('inventario_id, cantidad_fisica, fecha')
+    .order('fecha', { ascending: false })
 
-  // Calcular consumo de los últimos 7 días
-  const sevenDaysAgo = new Date()
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-  const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0]
+  const stockActual = {}
+  conteos?.forEach(c => {
+    if (stockActual[c.inventario_id] === undefined) stockActual[c.inventario_id] = c.cantidad_fisica
+  })
 
-  const { data: registers } = await supabase
-    .from('caja_registros')
-    .select('id')
-    .gte('fecha', sevenDaysAgoStr)
+  const { data: existing } = await supabase
+    .from('listas_compras').select('id').eq('semana', semana).single()
 
-  const weeklyConsumption = {}
-  if (registers?.length) {
-    const registerIds = registers.map(r => r.id)
-    const { data: salesItems } = await supabase
-      .from('venta_items')
-      .select('dish_id, quantity')
-      .in('register_id', registerIds)
-      .not('dish_id', 'is', null)
-
-    if (salesItems?.length) {
-      const dishIds = [...new Set(salesItems.map(s => s.dish_id))]
-      const { data: recipes } = await supabase
-        .from('receta_ingredientes')
-        .select('dish_id, product_id, quantity_per_portion')
-        .in('dish_id', dishIds)
-
-      salesItems.forEach(sale => {
-        const ings = recipes?.filter(r => r.dish_id === sale.dish_id) || []
-        ings.forEach(ing => {
-          weeklyConsumption[ing.product_id] = (weeklyConsumption[ing.product_id] || 0)
-            + (ing.quantity_per_portion * sale.quantity)
-        })
-      })
-    }
-  }
-
-  // Generar items: stock actual < stock mínimo + consumo semanal
-  const itemsNeeded = products
-    ?.filter(p => {
-      const consumption = weeklyConsumption[p.id] || 0
-      return p.current_stock < (p.minimum_stock + consumption)
-    })
-    .map(p => {
-      const consumption = weeklyConsumption[p.id] || 0
-      const needed = Math.ceil((p.minimum_stock + consumption) - p.current_stock)
-      return {
-        product_id: p.id,
-        product_name: p.name,
-        category: p.category,
-        quantity_needed: needed,
-        unit: p.unit,
-        estimated_cost: needed * p.cost_per_unit
-      }
-    })
-
-  if (!itemsNeeded?.length) {
-    return res.json({ message: 'No se necesitan compras esta semana', items: [] })
-  }
-
-  // Crear o reemplazar lista
-  const { data: existingList } = await supabase
-    .from('listas_compras')
-    .select('id')
-    .eq('week_start', ws)
-    .single()
-
-  if (existingList) {
-    await supabase.from('listas_compras_items').delete().eq('list_id', existingList.id)
-    await supabase.from('listas_compras_items')
-      .insert(itemsNeeded.map(i => ({ ...i, list_id: existingList.id })))
-
-    const { data: updatedList } = await supabase
+  let lista_id
+  if (existing) {
+    lista_id = existing.id
+    await supabase.from('listas_compras_items').delete().eq('lista_id', lista_id)
+  } else {
+    const { data: nueva } = await supabase
       .from('listas_compras')
-      .select('*, listas_compras_items(*)')
-      .eq('id', existingList.id).single()
-
-    return res.json({ list: updatedList })
+      .insert({ semana, estado: 'borrador', total_estimado: 0 })
+      .select('id').single()
+    lista_id = nueva.id
   }
 
-  const { data: newList, error } = await supabase
-    .from('listas_compras')
-    .insert({ week_start: ws, week_end: we, created_by: req.user.id })
-    .select().single()
+  const items = productos
+    ?.filter(p => (stockActual[p.id] ?? 0) < p.stock_minimo)
+    .map(p => ({
+      lista_id,
+      inventario_id:      p.id,
+      nombre:             p.nombre,
+      unidad:             p.unidad,
+      cantidad_sugerida:  Math.max(0, p.stock_minimo - (stockActual[p.id] ?? 0)),
+      cantidad_ajustada:  null,
+      precio_unitario:    0,
+      total:              0,
+      comprado:           false,
+    }))
 
-  if (error) return res.status(500).json({ error: error.message })
+  if (items?.length) {
+    await supabase.from('listas_compras_items').insert(items)
+  }
 
-  await supabase.from('listas_compras_items')
-    .insert(itemsNeeded.map(i => ({ ...i, list_id: newList.id })))
+  const { data: listaFinal } = await supabase
+    .from('listas_compras').select('*, listas_compras_items(*)').eq('id', lista_id).single()
 
-  const { data: finalList } = await supabase
-    .from('listas_compras')
-    .select('*, listas_compras_items(*)')
-    .eq('id', newList.id).single()
-
-  res.status(201).json({ list: finalList })
+  res.json({ lista: listaFinal })
 })
 
-// Marcar ítem como comprado
 router.put('/items/:id', async (req, res) => {
-  const { purchased, notes } = req.body
+  const { cantidad_ajustada, precio_unitario, comprado } = req.body
+  const updates = {}
+  if (cantidad_ajustada !== undefined) updates.cantidad_ajustada = parseFloat(cantidad_ajustada)
+  if (precio_unitario   !== undefined) updates.precio_unitario   = parseFloat(precio_unitario) || 0
+  if (comprado          !== undefined) updates.comprado          = comprado
+  // Recalcular total si cambian cantidad o precio
+  if (updates.cantidad_ajustada !== undefined || updates.precio_unitario !== undefined) {
+    const { data: current } = await supabase.from('listas_compras_items').select('cantidad_ajustada,cantidad_sugerida,precio_unitario').eq('id', req.params.id).single()
+    const qty = updates.cantidad_ajustada ?? current?.cantidad_ajustada ?? current?.cantidad_sugerida ?? 0
+    const pu  = updates.precio_unitario   ?? current?.precio_unitario ?? 0
+    updates.total = qty * pu
+  }
   const { data, error } = await supabase
-    .from('listas_compras_items')
-    .update({ purchased, notes })
-    .eq('id', req.params.id)
-    .select().single()
-
+    .from('listas_compras_items').update(updates).eq('id', req.params.id).select().single()
   if (error) return res.status(500).json({ error: error.message })
   res.json({ item: data })
 })

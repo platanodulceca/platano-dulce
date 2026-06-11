@@ -1,156 +1,93 @@
 import { Router } from 'express'
 import supabase from '../config/supabase.js'
-import { requireAuth } from '../middleware/auth.js'
+import { requireAuth, requireRoles } from '../middleware/auth.js'
 
 const router = Router()
 router.use(requireAuth)
 
-// Listar productos activos
-router.get('/products', async (req, res) => {
+router.get('/', async (req, res) => {
   const { data, error } = await supabase
     .from('inventario')
     .select('*')
-    .eq('active', true)
-    .order('category')
-    .order('name')
-
+    .order('categoria').order('nombre')
   if (error) return res.status(500).json({ error: error.message })
-  res.json({ products: data })
+  res.json({ inventario: data })
 })
 
-// Agregar producto
-router.post('/products', async (req, res) => {
-  const { name, category, unit, minimum_stock, current_stock, cost_per_unit } = req.body
+router.post('/', requireRoles('admin', 'chef', 'dueno'), async (req, res) => {
+  const { nombre, categoria, unidad, stock_minimo } = req.body
   const { data, error } = await supabase
     .from('inventario')
-    .insert({ name, category, unit, minimum_stock, current_stock, cost_per_unit })
-    .select()
-    .single()
-
+    .insert({ nombre, categoria, unidad, stock_minimo: parseFloat(stock_minimo) || 0, activo: true })
+    .select().single()
   if (error) return res.status(500).json({ error: error.message })
-  res.status(201).json({ product: data })
+  res.status(201).json({ producto: data })
 })
 
-// Editar producto
-router.put('/products/:id', async (req, res) => {
-  const { name, category, unit, minimum_stock, current_stock, cost_per_unit, active } = req.body
+router.put('/:id', requireRoles('admin', 'chef', 'dueno'), async (req, res) => {
+  const { nombre, categoria, unidad, stock_minimo, activo } = req.body
+  const updates = {}
+  if (nombre       !== undefined) updates.nombre       = nombre
+  if (categoria    !== undefined) updates.categoria    = categoria
+  if (unidad       !== undefined) updates.unidad       = unidad
+  if (stock_minimo !== undefined) updates.stock_minimo = parseFloat(stock_minimo) || 0
+  if (activo       !== undefined) updates.activo       = activo
   const { data, error } = await supabase
-    .from('inventario')
-    .update({ name, category, unit, minimum_stock, current_stock, cost_per_unit, active })
-    .eq('id', req.params.id)
-    .select()
-    .single()
-
+    .from('inventario').update(updates).eq('id', req.params.id).select().single()
   if (error) return res.status(500).json({ error: error.message })
-  res.json({ product: data })
+  res.json({ producto: data })
 })
 
-// Conteo del día actual
-router.get('/today', async (req, res) => {
+// Conteo del día (con última lectura conocida)
+router.get('/conteo/hoy', async (req, res) => {
   const today = new Date().toISOString().split('T')[0]
+  const dias  = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']
+  const dia_semana = dias[new Date().getDay()]
 
-  const { data: products } = await supabase
-    .from('inventario')
-    .select('*')
-    .eq('active', true)
-    .order('category').order('name')
+  const { data: productos } = await supabase
+    .from('inventario').select('*').eq('activo', true).order('categoria').order('nombre')
 
-  const { data: counts } = await supabase
-    .from('conteos_inventario')
-    .select('*')
-    .eq('date', today)
+  const { data: conteos } = await supabase
+    .from('conteos_inventario').select('*').eq('fecha', today)
 
-  const countMap = {}
-  counts?.forEach(c => { countMap[c.product_id] = c })
+  const mapa = {}
+  conteos?.forEach(c => { mapa[c.inventario_id] = c })
 
-  // Calcular consumo teórico desde las ventas de hoy
-  const { data: todayRegister } = await supabase
-    .from('caja_registros')
-    .select('id')
-    .eq('fecha', today)
-    .single()
+  const resultado = productos?.map(p => ({
+    ...p,
+    conteo_hoy:      mapa[p.id] || null,
+    cantidad_fisica: mapa[p.id]?.cantidad_fisica ?? null,
+    bajo_minimo:     (mapa[p.id]?.cantidad_fisica ?? Infinity) < p.stock_minimo,
+  })) || []
 
-  const theoreticalConsumption = {}
-  if (todayRegister) {
-    const { data: salesItems } = await supabase
-      .from('venta_items')
-      .select('dish_id, quantity')
-      .eq('register_id', todayRegister.id)
-      .not('dish_id', 'is', null)
-
-    if (salesItems?.length) {
-      const dishIds = [...new Set(salesItems.map(s => s.dish_id))]
-      const { data: recipes } = await supabase
-        .from('receta_ingredientes')
-        .select('dish_id, product_id, quantity_per_portion')
-        .in('dish_id', dishIds)
-
-      salesItems.forEach(sale => {
-        const ingredientes = recipes?.filter(r => r.dish_id === sale.dish_id) || []
-        ingredientes.forEach(ing => {
-          theoreticalConsumption[ing.product_id] = (theoreticalConsumption[ing.product_id] || 0)
-            + (ing.quantity_per_portion * sale.quantity)
-        })
-      })
-    }
-  }
-
-  const result = products?.map(p => {
-    const count = countMap[p.id]
-    const theoretical = theoreticalConsumption[p.id] || 0
-    const physical = count?.physical_count ?? p.current_stock
-    const difference = physical - theoretical
-    let status = 'ok'
-    if (physical <= 0) status = 'agotado'
-    else if (physical <= p.minimum_stock) status = 'reponer'
-
-    return {
-      ...p,
-      physical_count: physical,
-      theoretical_count: theoretical,
-      difference,
-      status,
-      count_id: count?.id || null
-    }
-  })
-
-  res.json({ inventory: result, date: today })
+  res.json({ inventario: resultado, fecha: today, dia_semana })
 })
 
 // Guardar conteo físico
-router.post('/count', async (req, res) => {
-  const { product_id, physical_count, date } = req.body
-  const countDate = date || new Date().toISOString().split('T')[0]
+router.post('/conteo', requireRoles('admin', 'chef', 'dueno', 'cajero'), async (req, res) => {
+  const { inventario_id, cantidad_fisica, cantidad_teorica, diferencia } = req.body
+  const today = new Date().toISOString().split('T')[0]
+  const dias  = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']
+  const dia_semana = dias[new Date().getDay()]
 
   const { data: existing } = await supabase
     .from('conteos_inventario')
-    .select('id')
-    .eq('date', countDate)
-    .eq('product_id', product_id)
-    .single()
+    .select('id').eq('inventario_id', inventario_id).eq('fecha', today).single()
 
   let data, error
   if (existing) {
     ;({ data, error } = await supabase
       .from('conteos_inventario')
-      .update({ physical_count, counted_by: req.user.id })
-      .eq('id', existing.id)
-      .select().single())
+      .update({ cantidad_fisica, cantidad_teorica, diferencia })
+      .eq('id', existing.id).select().single())
   } else {
     ;({ data, error } = await supabase
       .from('conteos_inventario')
-      .insert({ date: countDate, product_id, physical_count, counted_by: req.user.id })
+      .insert({ inventario_id, fecha: today, dia_semana, cantidad_fisica, cantidad_teorica, diferencia })
       .select().single())
   }
-
-  // Actualizar stock en products
-  await supabase
-    .from('inventario')
-    .update({ current_stock: physical_count })
-    .eq('id', product_id)
-
   if (error) return res.status(500).json({ error: error.message })
-  res.json({ count: data })
+  res.json({ conteo: data })
 })
 
 export default router

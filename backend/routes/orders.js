@@ -5,364 +5,299 @@ import { requireAuth, requireRoles } from '../middleware/auth.js'
 const router = Router()
 router.use(requireAuth)
 
-// ── Listar órdenes activas (para cocina y mesero) ─────────────
+// Órdenes activas (cocina / mesero)
 router.get('/active', async (req, res) => {
-  const activeStatuses = ['pendiente', 'en_preparacion', 'lista']
   const { data, error } = await supabase
     .from('ordenes')
     .select('*, orden_items(*)')
-    .in('status', activeStatuses)
-    .order('created_at', { ascending: true })
-
+    .in('estado', ['pendiente', 'en_preparacion', 'lista'])
+    .order('id', { ascending: true })
   if (error) return res.status(500).json({ error: error.message })
   res.json({ orders: data })
 })
 
-// ── Órdenes del mesero autenticado ────────────────────────────
+// Órdenes del mesero autenticado
 router.get('/mine', async (req, res) => {
   const { data, error } = await supabase
     .from('ordenes')
     .select('*, orden_items(*)')
-    .eq('waiter_id', req.user.id)
-    .not('status', 'in', '("cobrada","cancelada")')
-    .order('created_at', { ascending: false })
-
+    .eq('mesero_id', req.user.id)
+    .not('estado', 'in', '("cobrada","cancelada")')
+    .order('id', { ascending: false })
   if (error) return res.status(500).json({ error: error.message })
   res.json({ orders: data })
 })
 
-// ── Órdenes listas para cobrar (para cajero) ──────────────────
+// Órdenes listas para cobrar (cajero)
 router.get('/to-collect', async (req, res) => {
   const { data, error } = await supabase
     .from('ordenes')
-    .select('*, orden_items(*)')
-    .in('status', ['lista', 'entregada'])
-    .order('ready_at', { ascending: true })
-
+    .select('*, orden_items(*), mesas(numero)')
+    .in('estado', ['lista', 'entregada'])
+    .order('id', { ascending: true })
   if (error) return res.status(500).json({ error: error.message })
   res.json({ orders: data })
 })
 
-// ── Obtener orden por ID ──────────────────────────────────────
+// Obtener orden por ID
 router.get('/:id', async (req, res) => {
   const { data, error } = await supabase
     .from('ordenes')
-    .select('*, orden_items(*)')
+    .select('*, orden_items(*), mesas(numero, estado)')
     .eq('id', req.params.id)
     .single()
-
   if (error) return res.status(404).json({ error: 'Orden no encontrada' })
   res.json({ order: data })
 })
 
-// ── Crear nueva orden (borrador) ──────────────────────────────
-router.post('/', async (req, res) => {
-  const { table_id, notes } = req.body
+// Crear nueva orden (borrador)
+router.post('/', requireRoles('admin', 'mesero', 'dueno'), async (req, res) => {
+  const { mesa_id, personas, notas } = req.body
 
-  const { data: table } = await supabase
+  const { data: mesa } = await supabase
     .from('mesas')
-    .select('id, number, name, status')
-    .eq('id', table_id)
+    .select('id, numero, estado')
+    .eq('id', mesa_id)
     .single()
-
-  if (!table) return res.status(404).json({ error: 'Mesa no encontrada' })
-  if (table.status === 'ocupada') {
-    // Check if there's already an active draft for this table by this waiter
-    const { data: existingOrder } = await supabase
-      .from('ordenes')
-      .select('id')
-      .eq('table_id', table_id)
-      .eq('waiter_id', req.user.id)
-      .eq('status', 'borrador')
-      .single()
-    if (existingOrder) return res.status(400).json({ error: 'Ya tienes un borrador para esta mesa', order_id: existingOrder.id })
-  }
+  if (!mesa) return res.status(404).json({ error: 'Mesa no encontrada' })
 
   const { data, error } = await supabase
     .from('ordenes')
     .insert({
-      table_id,
-      table_number: table.number,
-      table_name: table.name || `Mesa ${table.number}`,
-      waiter_id: req.user.id,
-      waiter_name: req.user.name,
-      notes,
-      status: 'borrador'
+      mesa_id,
+      mesero_id: req.user.id,
+      estado:    'borrador',
+      total:     0,
+      personas:  parseInt(personas) || 1,
+      notas:     notas || null,
     })
-    .select('*, orden_items(*)')
+    .select('*, orden_items(*), mesas(numero)')
     .single()
-
   if (error) return res.status(500).json({ error: error.message })
   res.status(201).json({ order: data })
 })
 
-// ── Agregar ítem a orden ──────────────────────────────────────
+// Agregar ítem a orden
 router.post('/:id/items', async (req, res) => {
-  const { dish_id, dish_name, item_type, quantity, price_bs, cost_bs, notes } = req.body
+  const { nombre, precio, costo, cantidad, notas } = req.body
 
-  const { data: order } = await supabase.from('ordenes').select('status, waiter_id').eq('id', req.params.id).single()
-  if (!order) return res.status(404).json({ error: 'Orden no encontrada' })
-  if (order.waiter_id !== req.user.id && !['admin','dueno'].includes(req.user.role)) {
+  const { data: orden } = await supabase
+    .from('ordenes').select('estado, mesero_id').eq('id', req.params.id).single()
+  if (!orden) return res.status(404).json({ error: 'Orden no encontrada' })
+  if (orden.mesero_id !== req.user.id && !['admin', 'dueno'].includes(req.user.role)) {
     return res.status(403).json({ error: 'Sin acceso a esta orden' })
   }
-  if (['cobrada','cancelada'].includes(order.status)) {
+  if (['cobrada', 'cancelada'].includes(orden.estado)) {
     return res.status(400).json({ error: 'No se puede modificar una orden cerrada' })
   }
 
   const { data, error } = await supabase
     .from('orden_items')
     .insert({
-      order_id: req.params.id,
-      dish_id, dish_name, item_type,
-      quantity: parseInt(quantity) || 1,
-      price_bs: parseFloat(price_bs) || 0,
-      cost_bs: parseFloat(cost_bs) || 0,
-      notes
+      orden_id: req.params.id,
+      nombre,
+      precio:   parseFloat(precio)   || 0,
+      costo:    parseFloat(costo)    || 0,
+      cantidad: parseInt(cantidad)   || 1,
+      notas:    notas || null,
+      estado:   'pendiente',
     })
     .select().single()
-
   if (error) return res.status(500).json({ error: error.message })
-
   await recalcTotal(req.params.id)
   res.status(201).json({ item: data })
 })
 
-// ── Actualizar ítem (cantidad / notas) ────────────────────────
+// Actualizar ítem (cantidad / notas / precio / costo)
 router.put('/:id/items/:itemId', async (req, res) => {
-  const { quantity, notes, price_bs, cost_bs } = req.body
+  const { cantidad, notas, precio, costo } = req.body
   const updates = {}
-  if (quantity !== undefined) updates.quantity = parseInt(quantity) || 1
-  if (notes !== undefined) updates.notes = notes
-  if (price_bs !== undefined) updates.price_bs = parseFloat(price_bs)
-  if (cost_bs !== undefined) updates.cost_bs = parseFloat(cost_bs)
-  updates.updated_at = new Date().toISOString()
+  if (cantidad !== undefined) updates.cantidad = parseInt(cantidad) || 1
+  if (notas    !== undefined) updates.notas    = notas
+  if (precio   !== undefined) updates.precio   = parseFloat(precio)
+  if (costo    !== undefined) updates.costo    = parseFloat(costo)
 
   const { data, error } = await supabase
     .from('orden_items')
     .update(updates)
     .eq('id', req.params.itemId)
-    .eq('order_id', req.params.id)
+    .eq('orden_id', req.params.id)
     .select().single()
-
   if (error) return res.status(500).json({ error: error.message })
   await recalcTotal(req.params.id)
   res.json({ item: data })
 })
 
-// ── Eliminar ítem ─────────────────────────────────────────────
+// Eliminar ítem
 router.delete('/:id/items/:itemId', async (req, res) => {
   const { error } = await supabase
     .from('orden_items')
     .delete()
     .eq('id', req.params.itemId)
-    .eq('order_id', req.params.id)
-
+    .eq('orden_id', req.params.id)
   if (error) return res.status(500).json({ error: error.message })
   await recalcTotal(req.params.id)
   res.json({ message: 'Ítem eliminado' })
 })
 
-// ── Enviar orden a cocina ─────────────────────────────────────
+// Enviar orden a cocina
 router.put('/:id/send', async (req, res) => {
-  const { data: order } = await supabase
-    .from('ordenes')
-    .select('*, orden_items(*)')
-    .eq('id', req.params.id)
-    .single()
-
-  if (!order) return res.status(404).json({ error: 'Orden no encontrada' })
-  if (order.status !== 'borrador') return res.status(400).json({ error: 'La orden ya fue enviada' })
-  if (!order.orden_items?.length) return res.status(400).json({ error: 'La orden no tiene ítems' })
+  const { data: orden } = await supabase
+    .from('ordenes').select('*, orden_items(*)').eq('id', req.params.id).single()
+  if (!orden) return res.status(404).json({ error: 'Orden no encontrada' })
+  if (orden.estado !== 'borrador') return res.status(400).json({ error: 'La orden ya fue enviada' })
+  if (!orden.orden_items?.length) return res.status(400).json({ error: 'La orden no tiene ítems' })
 
   const { data, error } = await supabase
     .from('ordenes')
-    .update({ status: 'pendiente', sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .update({ estado: 'pendiente' })
     .eq('id', req.params.id)
-    .select('*, orden_items(*)').single()
-
+    .select('*, orden_items(*), mesas(numero)').single()
   if (error) return res.status(500).json({ error: error.message })
 
-  // Marcar mesa como ocupada
-  await supabase
-    .from('mesas')
-    .update({ status: 'ocupada', current_order_id: req.params.id })
-    .eq('id', order.table_id)
-
+  await supabase.from('mesas').update({ estado: 'ocupada' }).eq('id', orden.mesa_id)
   res.json({ order: data })
 })
 
-// ── Actualizar estado de ítem (para chef) ─────────────────────
-router.put('/:id/items/:itemId/status', requireRoles('admin','chef','dueno'), async (req, res) => {
-  const { status } = req.body
-  const validStatuses = ['pendiente','en_preparacion','listo','entregado']
-  if (!validStatuses.includes(status)) return res.status(400).json({ error: 'Estado inválido' })
+// Actualizar estado de ítem (para chef)
+router.put('/:id/items/:itemId/status', requireRoles('admin', 'chef', 'dueno'), async (req, res) => {
+  const { estado } = req.body
+  const validos = ['pendiente', 'en_preparacion', 'listo', 'entregado']
+  if (!validos.includes(estado)) return res.status(400).json({ error: 'Estado inválido' })
 
   const { error } = await supabase
     .from('orden_items')
-    .update({ status, updated_at: new Date().toISOString() })
+    .update({ estado })
     .eq('id', req.params.itemId)
-    .eq('order_id', req.params.id)
-
+    .eq('orden_id', req.params.id)
   if (error) return res.status(500).json({ error: error.message })
 
-  // Auto-actualizar estado de la orden
-  const newOrderStatus = await autoUpdateOrderStatus(req.params.id)
+  const nuevoEstado = await autoActualizarOrden(req.params.id)
 
-  // Obtener orden actualizada
-  const { data: updatedOrder } = await supabase
-    .from('ordenes')
-    .select('*, orden_items(*)')
-    .eq('id', req.params.id)
-    .single()
-
-  res.json({ order: updatedOrder, order_status: newOrderStatus })
+  const { data: ordenActualizada } = await supabase
+    .from('ordenes').select('*, orden_items(*)').eq('id', req.params.id).single()
+  res.json({ order: ordenActualizada, order_status: nuevoEstado })
 })
 
-// ── Marcar orden como entregada (mesero) ──────────────────────
+// Marcar orden como entregada (mesero)
 router.put('/:id/deliver', async (req, res) => {
-  const { data: order } = await supabase.from('ordenes').select('status, waiter_id').eq('id', req.params.id).single()
-  if (!order) return res.status(404).json({ error: 'Orden no encontrada' })
-  if (!['lista','en_preparacion'].includes(order.status)) {
+  const { data: orden } = await supabase
+    .from('ordenes').select('estado, mesero_id').eq('id', req.params.id).single()
+  if (!orden) return res.status(404).json({ error: 'Orden no encontrada' })
+  if (!['lista', 'en_preparacion'].includes(orden.estado)) {
     return res.status(400).json({ error: 'La orden no está lista para entrega' })
   }
 
   const { data, error } = await supabase
     .from('ordenes')
-    .update({ status: 'entregada', delivered_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .update({ estado: 'entregada' })
     .eq('id', req.params.id)
-    .select('*, orden_items(*)').single()
-
+    .select('*, orden_items(*), mesas(numero)').single()
   if (error) return res.status(500).json({ error: error.message })
   res.json({ order: data })
 })
 
-// ── Cobrar orden (cajero) ─────────────────────────────────────
-router.put('/:id/cobrar', requireRoles('admin','cajero','dueno'), async (req, res) => {
-  const { data: order } = await supabase
-    .from('ordenes')
-    .select('*, orden_items(*)')
-    .eq('id', req.params.id)
-    .single()
-
-  if (!order) return res.status(404).json({ error: 'Orden no encontrada' })
-  if (!['lista','entregada'].includes(order.status)) {
+// Cobrar orden (cajero)
+router.put('/:id/cobrar', requireRoles('admin', 'cajero', 'dueno'), async (req, res) => {
+  const { data: orden } = await supabase
+    .from('ordenes').select('*, orden_items(*)').eq('id', req.params.id).single()
+  if (!orden) return res.status(404).json({ error: 'Orden no encontrada' })
+  if (!['lista', 'entregada'].includes(orden.estado)) {
     return res.status(400).json({ error: 'La orden no está lista para cobrar' })
   }
 
-  // Obtener o crear registro del día
   const today = new Date().toISOString().split('T')[0]
-  let { data: register } = await supabase
-    .from('caja_registros')
-    .select('id')
-    .eq('fecha', today)
-    .single()
-
-  if (!register) {
-    const { data: newReg } = await supabase
+  let { data: caja } = await supabase
+    .from('caja_registros').select('id').eq('fecha', today).single()
+  if (!caja) {
+    const { data: nueva } = await supabase
       .from('caja_registros')
-      .insert({ fecha: today, tasa_bcv: 0, cajero_id: req.user.id })
+      .insert({ fecha: today, tasa_bcv: 0, created_by: req.user.id })
       .select('id').single()
-    register = newReg
+    caja = nueva
   }
 
-  // Insertar ítems en venta_items
-  if (order.orden_items?.length) {
-    const salesItems = order.orden_items.map(item => ({
-      caja_id:  register.id,
-      nombre:   item.dish_name,
-      cantidad: item.quantity,
-      precio:   item.price_bs,
-      costo:    item.cost_bs,
-    }))
-    await supabase.from('venta_items').insert(salesItems)
+  if (orden.orden_items?.length) {
+    await supabase.from('venta_items').insert(
+      orden.orden_items.map(i => ({
+        caja_id:  caja.id,
+        nombre:   i.nombre,
+        precio:   Number(i.precio),
+        costo:    Number(i.costo) || 0,
+        cantidad: Number(i.cantidad),
+      }))
+    )
   }
 
-  // Marcar orden como cobrada
   const { data, error } = await supabase
     .from('ordenes')
-    .update({
-      status: 'cobrada',
-      register_id: register.id,
-      cobrado_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    })
+    .update({ estado: 'cobrada' })
     .eq('id', req.params.id)
-    .select('*, orden_items(*)').single()
-
+    .select('*, orden_items(*), mesas(numero)').single()
   if (error) return res.status(500).json({ error: error.message })
 
-  // Liberar mesa
-  await supabase
-    .from('mesas')
-    .update({ status: 'disponible', current_order_id: null })
-    .eq('id', order.table_id)
+  const { data: otras } = await supabase
+    .from('ordenes').select('id')
+    .eq('mesa_id', orden.mesa_id)
+    .not('estado', 'in', '("cobrada","cancelada")')
+  if (!otras?.length) {
+    await supabase.from('mesas').update({ estado: 'disponible' }).eq('id', orden.mesa_id)
+  }
 
-  res.json({ order: data, register_id: register.id })
+  res.json({ order: data, caja_id: caja.id })
 })
 
-// ── Cancelar orden ────────────────────────────────────────────
+// Cancelar orden
 router.put('/:id/cancel', async (req, res) => {
-  const { data: order } = await supabase.from('ordenes').select('status, table_id').eq('id', req.params.id).single()
-  if (!order) return res.status(404).json({ error: 'Orden no encontrada' })
-  if (['cobrada','cancelada'].includes(order.status)) {
+  const { data: orden } = await supabase
+    .from('ordenes').select('estado, mesa_id').eq('id', req.params.id).single()
+  if (!orden) return res.status(404).json({ error: 'Orden no encontrada' })
+  if (['cobrada', 'cancelada'].includes(orden.estado)) {
     return res.status(400).json({ error: 'No se puede cancelar esta orden' })
   }
 
-  await supabase.from('ordenes').update({ status: 'cancelada', updated_at: new Date().toISOString() }).eq('id', req.params.id)
+  await supabase.from('ordenes').update({ estado: 'cancelada' }).eq('id', req.params.id)
 
-  // Solo liberar mesa si no hay otra orden activa
-  const { data: otherOrders } = await supabase
-    .from('ordenes')
-    .select('id')
-    .eq('table_id', order.table_id)
-    .not('status', 'in', '("cobrada","cancelada","borrador")')
+  const { data: otras } = await supabase
+    .from('ordenes').select('id')
+    .eq('mesa_id', orden.mesa_id)
+    .not('estado', 'in', '("cobrada","cancelada","borrador")')
     .neq('id', req.params.id)
-
-  if (!otherOrders?.length) {
-    await supabase.from('mesas').update({ status: 'disponible', current_order_id: null }).eq('id', order.table_id)
+  if (!otras?.length) {
+    await supabase.from('mesas').update({ estado: 'disponible' }).eq('id', orden.mesa_id)
   }
 
   res.json({ message: 'Orden cancelada' })
 })
 
-// ── Helpers internos ──────────────────────────────────────────
-async function recalcTotal(orderId) {
-  const { data: items } = await supabase
-    .from('orden_items')
-    .select('price_bs, quantity')
-    .eq('order_id', orderId)
-
-  const total = items?.reduce((s, i) => s + Number(i.price_bs) * i.quantity, 0) || 0
-  await supabase.from('ordenes').update({ total_bs: total, updated_at: new Date().toISOString() }).eq('id', orderId)
+async function recalcTotal(ordenId) {
+  const { data } = await supabase
+    .from('orden_items').select('precio, cantidad').eq('orden_id', ordenId)
+  const total = data?.reduce((s, i) => s + Number(i.precio) * Number(i.cantidad), 0) || 0
+  await supabase.from('ordenes').update({ total }).eq('id', ordenId)
 }
 
-async function autoUpdateOrderStatus(orderId) {
+async function autoActualizarOrden(ordenId) {
   const { data: items } = await supabase
-    .from('orden_items')
-    .select('status')
-    .eq('order_id', orderId)
-
+    .from('orden_items').select('estado').eq('orden_id', ordenId)
   if (!items?.length) return null
 
-  const { data: currentOrder } = await supabase.from('ordenes').select('status').eq('id', orderId).single()
-  if (!currentOrder || ['cobrada','cancelada','entregada'].includes(currentOrder.status)) return currentOrder?.status
+  const { data: orden } = await supabase.from('ordenes').select('estado').eq('id', ordenId).single()
+  if (!orden || ['cobrada', 'cancelada', 'entregada'].includes(orden.estado)) return orden?.estado
 
-  const allListo = items.every(i => i.status === 'listo')
-  const anyPrep = items.some(i => i.status === 'en_preparacion')
-  const anyListo = items.some(i => i.status === 'listo')
+  const todosListos  = items.every(i => i.estado === 'listo')
+  const hayPrep      = items.some(i => i.estado === 'en_preparacion')
+  const hayListo     = items.some(i => i.estado === 'listo')
 
-  let newStatus = currentOrder.status
-  if (allListo) newStatus = 'lista'
-  else if (anyPrep || anyListo) newStatus = 'en_preparacion'
-  else newStatus = 'pendiente'
+  let nuevoEstado = orden.estado
+  if (todosListos)         nuevoEstado = 'lista'
+  else if (hayPrep || hayListo) nuevoEstado = 'en_preparacion'
+  else                     nuevoEstado = 'pendiente'
 
-  if (newStatus !== currentOrder.status) {
-    const updates = { status: newStatus, updated_at: new Date().toISOString() }
-    if (newStatus === 'lista') updates.ready_at = new Date().toISOString()
-    await supabase.from('ordenes').update(updates).eq('id', orderId)
+  if (nuevoEstado !== orden.estado) {
+    await supabase.from('ordenes').update({ estado: nuevoEstado }).eq('id', ordenId)
   }
-
-  return newStatus
+  return nuevoEstado
 }
 
 export default router

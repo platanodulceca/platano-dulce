@@ -24,20 +24,17 @@ router.post('/login', async (req, res) => {
 
   const u = users[0]
 
-  // Soporta tanto 'password' como 'password_hash' según el schema
-  const storedHash = u.password ?? u.password_hash
-  if (!storedHash) {
+  if (!u.password) {
     return res.status(401).json({ error: 'Credenciales inválidas' })
   }
 
-  const valid = await bcrypt.compare(password, storedHash)
+  const valid = await bcrypt.compare(password, u.password)
   if (!valid) {
     return res.status(401).json({ error: 'Credenciales inválidas' })
   }
 
-  // Normalizar campos: soporta nombre/name y rol/role
-  const name = u.nombre ?? u.name ?? u.email
-  const role = u.rol   ?? u.role
+  const name = u.nombre ?? u.email
+  const role = u.rol
 
   const token = jwt.sign(
     { id: u.id, email: u.email, name, role },
@@ -62,8 +59,8 @@ router.get('/me', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Usuario no encontrado' })
   }
 
-  const name = u.nombre ?? u.name ?? u.email
-  const role = u.rol   ?? u.role
+  const name = u.nombre ?? u.email
+  const role = u.rol
 
   res.json({ user: { id: u.id, email: u.email, name, role } })
 })
