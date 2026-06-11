@@ -9,7 +9,7 @@ router.use(requireAuth)
 router.get('/active', async (req, res) => {
   const { data, error } = await supabase
     .from('ordenes')
-    .select('*, orden_items(*)')
+    .select('*, orden_items(*), mesas(numero)')
     .in('estado', ['pendiente', 'en_preparacion', 'lista'])
     .order('id', { ascending: true })
   if (error) return res.status(500).json({ error: error.message })
@@ -180,7 +180,7 @@ router.put('/:id/items/:itemId/status', requireRoles('admin', 'chef', 'dueno'), 
   const nuevoEstado = await autoActualizarOrden(req.params.id)
 
   const { data: ordenActualizada } = await supabase
-    .from('ordenes').select('*, orden_items(*)').eq('id', req.params.id).single()
+    .from('ordenes').select('*, orden_items(*), mesas(numero)').eq('id', req.params.id).single()
   res.json({ order: ordenActualizada, order_status: nuevoEstado })
 })
 
@@ -300,7 +300,9 @@ async function autoActualizarOrden(ordenId) {
   else                     nuevoEstado = 'pendiente'
 
   if (nuevoEstado !== orden.estado) {
-    await supabase.from('ordenes').update({ estado: nuevoEstado }).eq('id', ordenId)
+    const { error: upErr } = await supabase.from('ordenes').update({ estado: nuevoEstado }).eq('id', ordenId)
+    if (upErr) console.error('[autoActualizarOrden] error al pasar a', nuevoEstado, upErr)
+    else console.log('[autoActualizarOrden] orden', ordenId, '→', nuevoEstado)
   }
   return nuevoEstado
 }

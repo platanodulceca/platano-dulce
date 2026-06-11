@@ -106,6 +106,7 @@ export default function Mesero() {
     try { await api.put(`/ordenes/${ordenId}/estado`, { estado }); await cargar() } catch {}
   }
 
+  const nListas     = ordenes.filter(o => o.estado === 'lista').length
   const categorias  = [...new Set(platos.map(p => p.categoria))].sort()
   const porCategoria = platos.reduce((acc, p) => { if (!acc[p.categoria]) acc[p.categoria] = []; acc[p.categoria].push(p); return acc }, {})
   const totalOrden  = items.reduce((s, i) => s + Number(i.plato.precio) * i.cantidad, 0)
@@ -120,13 +121,27 @@ export default function Mesero() {
       </div>
 
       <div style={{ display: 'flex', borderBottom: '1px solid var(--gray-100)', marginBottom: '1rem' }}>
-        {[{ id: 'mesas', label: `Mesas (${mesas.length})` }, { id: 'ordenes', label: `Mis Órdenes (${ordenes.length})` }].map(t => (
+        {[
+          { id: 'mesas',   label: `Mesas (${mesas.length})`,       badge: 0 },
+          { id: 'ordenes', label: `Mis Órdenes (${ordenes.length})`, badge: nListas },
+        ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
             flex: 1, padding: '.65rem', border: 'none', background: 'none', cursor: 'pointer',
-            fontWeight: 700, fontSize: '.9rem',
-            color: tab === t.id ? 'var(--orange)' : 'var(--gray-500)',
-            borderBottom: tab === t.id ? '3px solid var(--orange)' : '3px solid transparent',
-          }}>{t.label}</button>
+            fontWeight: 700, fontSize: '.9rem', position: 'relative',
+            color: tab === t.id ? 'var(--orange)' : t.badge > 0 ? 'var(--orange)' : 'var(--gray-500)',
+            borderBottom: tab === t.id ? '3px solid var(--orange)' : t.badge > 0 ? '3px solid rgba(255,140,0,.3)' : '3px solid transparent',
+          }}>
+            {t.label}
+            {t.badge > 0 && (
+              <span style={{
+                position: 'absolute', top: 6, right: 10,
+                background: 'var(--orange)', color: 'white', borderRadius: '50%',
+                width: 20, height: 20, fontSize: '.72rem', fontWeight: 800,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                animation: 'badgePulse 1s ease-in-out infinite',
+              }}>{t.badge}</span>
+            )}
+          </button>
         ))}
       </div>
 
@@ -307,4 +322,11 @@ export default function Mesero() {
       )}
     </div>
   )
+}
+
+if (typeof document !== 'undefined' && !document.getElementById('mesero-styles')) {
+  const style = document.createElement('style')
+  style.id = 'mesero-styles'
+  style.textContent = `@keyframes badgePulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.25);opacity:.85} }`
+  document.head.appendChild(style)
 }
