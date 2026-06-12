@@ -71,10 +71,10 @@ export const ROLE_LABELS = {
 }
 
 export const ROLE_MODULES = {
-  admin:  ['dashboard','caja','mesero','cocina','inventario','recetario','compras','cuentas','historial'],
+  admin:  ['dashboard','caja','mesero','cocina','barra','inventario','recetario','compras','cuentas','historial'],
   cajero: ['caja','cuentas'],
-  chef:   ['cocina','inventario','recetario','compras'],
-  dueno:  ['dashboard','caja','mesero','cocina','inventario','recetario','compras','cuentas','historial'],
+  chef:   ['cocina','barra','inventario','recetario','compras'],
+  dueno:  ['dashboard','caja','mesero','cocina','barra','inventario','recetario','compras','cuentas','historial'],
   mesero: ['mesero']
 }
 

@@ -206,6 +206,20 @@ async function seed() {
     else console.log(`  ✓ ${rows.length} productos insertados`)
   }
 
+  // ── Cafés (upsert por nombre) ───────────────────────────────
+  console.log('\n☕ Cafés...')
+  const cafes = [
+    { nombre: 'Café Guayoyo',       categoria: 'cafes', precio_usd: 1.50, precio: Math.round(1.50 * RATE), costo: Math.round(1.50 * RATE * 0.20), activo: true },
+    { nombre: 'Café con Leche',     categoria: 'cafes', precio_usd: 2.00, precio: Math.round(2.00 * RATE), costo: Math.round(2.00 * RATE * 0.22), activo: true },
+    { nombre: 'Capuchino',          categoria: 'cafes', precio_usd: 2.50, precio: Math.round(2.50 * RATE), costo: Math.round(2.50 * RATE * 0.25), activo: true },
+    { nombre: 'Chocolate Caliente', categoria: 'cafes', precio_usd: 2.50, precio: Math.round(2.50 * RATE), costo: Math.round(2.50 * RATE * 0.25), activo: true },
+  ]
+  for (const c of cafes) {
+    const { error } = await supabase.from('menu_items').upsert(c, { onConflict: 'nombre' })
+    if (error) console.error(`  ✗ ${c.nombre}:`, error.message)
+    else console.log(`  ✓ ${c.nombre}  $${c.precio_usd}`)
+  }
+
   console.log('\n✅ Seed completado.\n')
 }
 

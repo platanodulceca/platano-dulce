@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { module: 'caja',       path: '/caja',        label: 'Caja',       icon: '💰' },
   { module: 'mesero',     path: '/mesero',      label: 'Mesas',      icon: '🪑' },
   { module: 'cocina',     path: '/cocina',      label: 'Cocina',     icon: '👨‍🍳' },
+  { module: 'barra',      path: '/barra',       label: 'Barra',      icon: '🍹' },
   { module: 'inventario', path: '/inventario',  label: 'Inventario', icon: '📦' },
   { module: 'recetario',  path: '/recetario',   label: 'Recetario',  icon: '📋' },
   { module: 'compras',    path: '/compras',      label: 'Compras',    icon: '🛒' },

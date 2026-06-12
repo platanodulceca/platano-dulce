@@ -12,6 +12,7 @@ import Cuentas from './pages/Cuentas'
 import Historial from './pages/Historial'
 import Mesero from './pages/Mesero'
 import Cocina from './pages/Cocina'
+import Barra from './pages/Barra'
 
 export default function App() {
   return (
@@ -37,6 +38,11 @@ export default function App() {
           <Route path="/cocina" element={
             <ProtectedRoute module="cocina">
               <Cocina />
+            </ProtectedRoute>
+          } />
+          <Route path="/barra" element={
+            <ProtectedRoute module="barra">
+              <Barra />
             </ProtectedRoute>
           } />
           <Route path="/inventario" element={
