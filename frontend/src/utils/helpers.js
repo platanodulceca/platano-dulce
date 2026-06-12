@@ -124,3 +124,5 @@ export const DISH_CATEGORY_LABELS = {
   entrada: 'Entrada',
   otro:    'Otro'
 }
+
+export const BARRA_CATEGORIAS = ['bebidas', 'cafes', 'jugos', 'smoothies', 'cervezas', 'bar']

@@ -85,7 +85,7 @@ router.post('/', requireRoles('admin', 'mesero', 'dueno'), async (req, res) => {
 
 // Agregar ítem a orden
 router.post('/:id/items', async (req, res) => {
-  const { nombre, precio, cantidad, notas } = req.body
+  const { nombre, precio, cantidad, notas, categoria } = req.body
 
   const { data: orden } = await supabase
     .from('ordenes').select('estado, mesero_id').eq('id', req.params.id).single()
@@ -100,12 +100,13 @@ router.post('/:id/items', async (req, res) => {
   const { data, error } = await supabase
     .from('orden_items')
     .insert({
-      orden_id: req.params.id,
+      orden_id:  req.params.id,
       nombre,
-      precio:   parseFloat(precio)   || 0,
-      cantidad: parseInt(cantidad)   || 1,
-      notas:    notas || null,
-      estado:   'pendiente',
+      precio:    parseFloat(precio)  || 0,
+      cantidad:  parseInt(cantidad)  || 1,
+      notas:     notas || null,
+      categoria: categoria || null,
+      estado:    'pendiente',
     })
     .select().single()
   if (error) { console.error('[orders POST /:id/items]', error); return res.status(500).json({ error: error.message }) }

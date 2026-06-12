@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import api from '../services/api'
-import { ITEM_STATUS_LABELS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../utils/helpers'
+import { ITEM_STATUS_LABELS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, BARRA_CATEGORIAS } from '../utils/helpers'
 
 const ALERT_MINUTES = 15
 
@@ -167,21 +167,31 @@ export default function Cocina() {
     })
   }
 
-  const filtered = orders.filter(o => {
-    if (filter === 'todas')      return true
-    if (filter === 'pendiente')  return o.estado === 'pendiente'
+  // Only show food items — exclude drink categories handled by Barra
+  const cocinaOrders = orders
+    .map(o => ({
+      ...o,
+      orden_items: (o.orden_items || []).filter(i =>
+        !BARRA_CATEGORIAS.includes((i.categoria || '').toLowerCase())
+      ),
+    }))
+    .filter(o => o.orden_items.length > 0)
+
+  const filtered = cocinaOrders.filter(o => {
+    if (filter === 'todas')       return true
+    if (filter === 'pendiente')   return o.estado === 'pendiente'
     if (filter === 'preparacion') return o.estado === 'en_preparacion'
     if (filter === 'listas')      return o.estado === 'listo'
     return true
   })
 
   const counts = {
-    pendiente:   orders.filter(o => o.estado === 'pendiente').length,
-    preparacion: orders.filter(o => o.estado === 'en_preparacion').length,
-    listas:      orders.filter(o => o.estado === 'listo').length,
+    pendiente:   cocinaOrders.filter(o => o.estado === 'pendiente').length,
+    preparacion: cocinaOrders.filter(o => o.estado === 'en_preparacion').length,
+    listas:      cocinaOrders.filter(o => o.estado === 'listo').length,
   }
 
-  const alertOrders = orders.filter(o => {
+  const alertOrders = cocinaOrders.filter(o => {
     if (!o.created_at) return false
     const mins = Math.floor((Date.now() - new Date(o.created_at).getTime()) / 60000)
     return mins >= ALERT_MINUTES && o.estado !== 'listo'
@@ -244,7 +254,7 @@ export default function Cocina() {
           <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem', color: 'rgba(255,255,255,.4)' }}>
             <div style={{ fontSize: '3rem', marginBottom: '.75rem' }}>🍳</div>
             <div style={{ fontSize: '1rem' }}>
-              {orders.length === 0 ? 'Sin órdenes activas en cocina' : 'No hay órdenes con este filtro'}
+              {cocinaOrders.length === 0 ? 'Sin órdenes activas en cocina' : 'No hay órdenes con este filtro'}
             </div>
           </div>
         ) : (

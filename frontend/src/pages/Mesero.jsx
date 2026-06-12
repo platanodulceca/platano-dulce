@@ -47,7 +47,7 @@ export default function Mesero() {
     setOrdenTab('menu')
     if (orden) {
       setItems(
-        orden.orden_items?.map(oi => ({ id: oi.id, plato: { nombre: oi.nombre, precio: oi.precio }, cantidad: oi.cantidad, notas: oi.notas || '' })) || []
+        orden.orden_items?.map(oi => ({ id: oi.id, plato: { nombre: oi.nombre, precio: oi.precio, categoria: oi.categoria }, cantidad: oi.cantidad, notas: oi.notas || '' })) || []
       )
     } else {
       setItems([])
@@ -83,10 +83,11 @@ export default function Mesero() {
       }
       // Insertar nuevos items
       await Promise.all(items.map(i => api.post(`/ordenes/${ordenId}/items`, {
-        nombre:   i.plato.nombre,
-        precio:   i.plato.precio,
-        cantidad: i.cantidad,
-        notas:    i.notas || null,
+        nombre:    i.plato.nombre,
+        precio:    i.plato.precio,
+        cantidad:  i.cantidad,
+        notas:     i.notas || null,
+        categoria: i.plato.categoria || null,
       })))
       // Marcar como pendiente si era nueva
       if (!ordenActiva) {

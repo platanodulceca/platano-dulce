@@ -8,25 +8,17 @@ router.use(requireAuth)
 const BARRA_CATEGORIAS = ['bebidas', 'cafes', 'jugos', 'smoothies', 'cervezas', 'bar']
 
 router.get('/active', async (req, res) => {
-  const [{ data: ordenes }, { data: platos }] = await Promise.all([
-    supabase
-      .from('ordenes')
-      .select('*, orden_items(*), mesas(numero)')
-      .in('estado', ['pendiente', 'en_preparacion', 'listo'])
-      .order('id', { ascending: true }),
-    supabase
-      .from('menu_items')
-      .select('nombre')
-      .in('categoria', BARRA_CATEGORIAS),
-  ])
-
-  const nombresBebidas = new Set((platos || []).map(p => p.nombre.toLowerCase()))
+  const { data: ordenes } = await supabase
+    .from('ordenes')
+    .select('*, orden_items(*), mesas(numero)')
+    .in('estado', ['pendiente', 'en_preparacion', 'listo'])
+    .order('id', { ascending: true })
 
   const barraOrdenes = (ordenes || [])
     .map(o => ({
       ...o,
       orden_items: (o.orden_items || []).filter(i =>
-        nombresBebidas.has((i.nombre || '').toLowerCase())
+        BARRA_CATEGORIAS.includes((i.categoria || '').toLowerCase())
       ),
     }))
     .filter(o => o.orden_items.length > 0)

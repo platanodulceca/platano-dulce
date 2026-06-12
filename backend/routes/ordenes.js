@@ -100,16 +100,17 @@ router.put('/:id/estado', async (req, res) => {
 })
 
 router.post('/:id/items', async (req, res) => {
-  const { nombre, precio, cantidad, notas } = req.body
+  const { nombre, precio, cantidad, notas, categoria } = req.body
   const { data: item, error } = await supabase
     .from('orden_items')
     .insert({
-      orden_id: req.params.id,
+      orden_id:  req.params.id,
       nombre,
-      precio:   parseFloat(precio)   || 0,
-      cantidad: parseInt(cantidad)   || 1,
-      notas:    notas || null,
-      estado:   'pendiente',
+      precio:    parseFloat(precio)  || 0,
+      cantidad:  parseInt(cantidad)  || 1,
+      notas:     notas || null,
+      categoria: categoria || null,
+      estado:    'pendiente',
     })
     .select().single()
   if (error) {

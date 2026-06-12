@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import api from '../services/api'
-import { ITEM_STATUS_LABELS } from '../utils/helpers'
+import { ITEM_STATUS_LABELS, BARRA_CATEGORIAS } from '../utils/helpers'
 
 const ALERT_MINUTES = 10
 
@@ -150,9 +150,12 @@ export default function Barra() {
       if (['pagado', 'cancelada'].includes(updatedOrder.estado)) {
         return prev.filter(o => o.id !== updatedOrder.id)
       }
+      const drinkItems = (updatedOrder.orden_items || []).filter(i =>
+        BARRA_CATEGORIAS.includes((i.categoria || '').toLowerCase())
+      )
+      if (drinkItems.length === 0) return prev.filter(o => o.id !== updatedOrder.id)
       const updated = [...prev]
-      // keep only beverage items (filter applied by backend on next poll)
-      updated[idx] = updatedOrder
+      updated[idx] = { ...updatedOrder, orden_items: drinkItems }
       return updated
     })
   }
