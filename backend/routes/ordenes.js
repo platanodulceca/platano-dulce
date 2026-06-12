@@ -5,6 +5,12 @@ import { requireAuth, requireRoles } from '../middleware/auth.js'
 const router = Router()
 router.use(requireAuth)
 
+const MONEDA_COBRO = {
+  efectivo_bs: 'bs', efectivo_usd: 'usd', pago_movil: 'bs',
+  punto_venta: 'bs', zelle: 'usd', transferencia: 'bs',
+  delivery: 'bs', credito: 'bs',
+}
+
 const recalcTotal = async (ordenId) => {
   const { data } = await supabase.from('orden_items').select('precio,cantidad').eq('orden_id', ordenId)
   const total = data?.reduce((s, i) => s + Number(i.precio) * Number(i.cantidad), 0) || 0
@@ -141,8 +147,10 @@ router.delete('/:id/items/:itemId', async (req, res) => {
   res.json({ message: 'Ítem eliminado' })
 })
 
-// Cobrar orden — transfiere ítems a venta_items
+// Cobrar orden — registra pago en caja, transfiere ítems y libera mesa
 router.put('/:id/cobrar', requireRoles('admin', 'cajero', 'dueno'), async (req, res) => {
+  const { metodo = 'efectivo_usd', referencia } = req.body
+
   const { data: orden } = await supabase
     .from('ordenes')
     .select('*, orden_items(*)')
@@ -153,22 +161,35 @@ router.put('/:id/cobrar', requireRoles('admin', 'cajero', 'dueno'), async (req, 
   }
 
   const today = new Date().toISOString().split('T')[0]
-  let { data: caja } = await supabase.from('caja_registros').select('id').eq('fecha', today).single()
+  let { data: caja } = await supabase.from('caja_registros').select('id, tasa_bcv').eq('fecha', today).single()
   if (!caja) {
     const { data: nueva } = await supabase
       .from('caja_registros')
       .insert({ fecha: today, tasa_bcv: 0, created_by: req.user.id })
-      .select('id').single()
+      .select('id, tasa_bcv').single()
     caja = nueva
   }
 
+  // Registrar pago automáticamente en caja_pagos
+  const moneda = MONEDA_COBRO[metodo] || 'usd'
+  const tasa   = Number(caja.tasa_bcv) || 1
+  const monto  = moneda === 'bs' ? Number(orden.total) * tasa : Number(orden.total)
+  await supabase.from('caja_pagos').insert({
+    caja_id:    caja.id,
+    metodo,
+    monto,
+    moneda,
+    referencia: referencia || null,
+  })
+
+  // Registrar ítems en venta_items
   if (orden.orden_items?.length) {
     await supabase.from('venta_items').insert(
       orden.orden_items.map(i => ({
-        caja_id: caja.id,
-        nombre:  i.nombre,
-        precio:  Number(i.precio),
-        costo:   0,
+        caja_id:  caja.id,
+        nombre:   i.nombre,
+        precio:   Number(i.precio),
+        costo:    0,
         cantidad: Number(i.cantidad),
       }))
     )
@@ -181,14 +202,13 @@ router.put('/:id/cobrar', requireRoles('admin', 'cajero', 'dueno'), async (req, 
     .select('*, orden_items(*), mesas(numero)').single()
   if (error) return res.status(500).json({ error: error.message })
 
-  // Liberar mesa si no hay otras órdenes activas
+  // Liberar mesa si no quedan órdenes activas en ella
   const { data: otras } = await supabase
-    .from('ordenes')
-    .select('id')
+    .from('ordenes').select('id')
     .eq('mesa_id', orden.mesa_id)
     .not('estado', 'in', '("pagado","cancelada")')
   if (!otras?.length) {
-    await supabase.from('mesas').update({ estado: 'disponible' }).eq('id', orden.mesa_id)
+    await supabase.from('mesas').update({ estado: 'libre' }).eq('id', orden.mesa_id)
   }
 
   res.json({ orden: data })

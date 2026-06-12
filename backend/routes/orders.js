@@ -246,7 +246,7 @@ router.put('/:id/cobrar', requireRoles('admin', 'cajero', 'dueno'), async (req, 
     .eq('mesa_id', orden.mesa_id)
     .not('estado', 'in', '("pagado","cancelada")')
   if (!otras?.length) {
-    await supabase.from('mesas').update({ estado: 'disponible' }).eq('id', orden.mesa_id)
+    await supabase.from('mesas').update({ estado: 'libre' }).eq('id', orden.mesa_id)
   }
 
   res.json({ order: data, caja_id: caja.id })
@@ -269,7 +269,7 @@ router.put('/:id/cancel', async (req, res) => {
     .not('estado', 'in', '("pagado","cancelada","borrador")')
     .neq('id', req.params.id)
   if (!otras?.length) {
-    await supabase.from('mesas').update({ estado: 'disponible' }).eq('id', orden.mesa_id)
+    await supabase.from('mesas').update({ estado: 'libre' }).eq('id', orden.mesa_id)
   }
 
   res.json({ message: 'Orden cancelada' })

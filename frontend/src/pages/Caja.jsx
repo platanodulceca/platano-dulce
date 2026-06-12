@@ -33,7 +33,15 @@ export default function Caja() {
   const [ordenesListas, setOrdenesListas] = useState([])
   const [cobrarOrden, setCobrarOrden]     = useState(null)
   const [cobrandoId, setCobrandoId]       = useState(null)
+  const [metodoPago, setMetodoPago]       = useState('efectivo_usd')
+  const [referenciaPago, setReferenciaPago] = useState('')
   const pollRef = useRef(null)
+
+  const abrirCobrar = (orden) => {
+    setCobrarOrden(orden)
+    setMetodoPago('efectivo_usd')
+    setReferenciaPago('')
+  }
 
   const esHoy = fecha === todayStr()
 
@@ -170,7 +178,10 @@ export default function Caja() {
   const confirmarCobro = async (ordenId) => {
     setCobrandoId(ordenId)
     try {
-      await api.put(`/ordenes/${ordenId}/cobrar`)
+      await api.put(`/ordenes/${ordenId}/cobrar`, {
+        metodo:     metodoPago,
+        referencia: referenciaPago.trim() || null,
+      })
       await Promise.all([cargarHoy(fecha), cargarOrdenes()])
       setCobrarOrden(null)
     } catch (err) {
@@ -240,7 +251,7 @@ export default function Caja() {
           </div>
           {ordenesListas.map(o => (
             <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: '.75rem', padding: '.75rem 1rem', borderBottom: '1px solid var(--gray-100)', cursor: 'pointer' }}
-              onClick={() => setCobrarOrden(o)}>
+              onClick={() => abrirCobrar(o)}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700 }}>Mesa {o.mesas?.numero}</div>
                 <div className="text-xs text-muted">{o.orden_items?.length || 0} ítems · {ORDER_STATUS_LABELS[o.estado]}</div>
@@ -491,7 +502,8 @@ export default function Caja() {
                   </tbody>
                 </table>
               </div>
-              <div style={{ background: 'var(--gray-50)', borderRadius: 8, padding: '.85rem 1rem' }}>
+
+              <div style={{ background: 'var(--gray-50)', borderRadius: 8, padding: '.85rem 1rem', marginBottom: '1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ fontWeight: 700 }}>Total</span>
                   <span style={{ fontWeight: 800, fontSize: '1.2rem', color: 'var(--orange)' }}>{fmtUsd(cobrarOrden.total)}</span>
@@ -502,6 +514,24 @@ export default function Caja() {
                     <span style={{ fontWeight: 700, color: 'var(--brown)' }}>{fmtBs(Number(cobrarOrden.total) * tasaNum)}</span>
                   </div>
                 )}
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '.75rem' }}>
+                <label className="form-label" style={{ fontWeight: 700 }}>Método de pago *</label>
+                <select className="form-control" value={metodoPago} onChange={e => setMetodoPago(e.target.value)}>
+                  {[
+                    'efectivo_usd', 'efectivo_bs', 'pago_movil', 'punto_venta',
+                    'zelle', 'transferencia', 'delivery', 'credito',
+                  ].map(m => (
+                    <option key={m} value={m}>{PAYMENT_LABELS[m]}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Referencia / Nota <span className="text-muted">(opcional)</span></label>
+                <input className="form-control" placeholder="Nro. de confirmación, nombre..." value={referenciaPago}
+                  onChange={e => setReferenciaPago(e.target.value)} />
               </div>
             </div>
             <div className="modal-footer">
