@@ -82,9 +82,9 @@ export const ORDER_STATUS_LABELS = {
   borrador:       'Borrador',
   pendiente:      'En espera',
   en_preparacion: 'Preparando',
-  lista:          'Lista 🔔',
-  entregada:      'Entregada',
-  cobrada:        'Cobrada',
+  listo:          'Lista 🔔',
+  entregado:      'Entregada',
+  pagado:         'Cobrada',
   cancelada:      'Cancelada'
 }
 
@@ -92,9 +92,9 @@ export const ORDER_STATUS_COLORS = {
   borrador:       'var(--gray-300)',
   pendiente:      'var(--warning)',
   en_preparacion: '#1565c0',
-  lista:          'var(--success)',
-  entregada:      'var(--brown)',
-  cobrada:        'var(--gray-500)',
+  listo:          'var(--success)',
+  entregado:      'var(--brown)',
+  pagado:         'var(--gray-500)',
   cancelada:      'var(--coral)'
 }
 

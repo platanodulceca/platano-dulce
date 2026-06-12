@@ -158,7 +158,7 @@ export default function Cocina() {
     setOrders(prev => {
       const idx = prev.findIndex(o => o.id === updatedOrder.id)
       if (idx < 0) return prev
-      if (['cobrada', 'cancelada'].includes(updatedOrder.estado)) {
+      if (['pagado', 'cancelada'].includes(updatedOrder.estado)) {
         return prev.filter(o => o.id !== updatedOrder.id)
       }
       const updated = [...prev]
@@ -171,20 +171,20 @@ export default function Cocina() {
     if (filter === 'todas')      return true
     if (filter === 'pendiente')  return o.estado === 'pendiente'
     if (filter === 'preparacion') return o.estado === 'en_preparacion'
-    if (filter === 'listas')     return o.estado === 'lista'
+    if (filter === 'listas')      return o.estado === 'listo'
     return true
   })
 
   const counts = {
     pendiente:   orders.filter(o => o.estado === 'pendiente').length,
     preparacion: orders.filter(o => o.estado === 'en_preparacion').length,
-    listas:      orders.filter(o => o.estado === 'lista').length,
+    listas:      orders.filter(o => o.estado === 'listo').length,
   }
 
   const alertOrders = orders.filter(o => {
     if (!o.created_at) return false
     const mins = Math.floor((Date.now() - new Date(o.created_at).getTime()) / 60000)
-    return mins >= ALERT_MINUTES && o.estado !== 'lista'
+    return mins >= ALERT_MINUTES && o.estado !== 'listo'
   })
 
   if (loading) return (

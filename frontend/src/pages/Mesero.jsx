@@ -106,7 +106,7 @@ export default function Mesero() {
     try { await api.put(`/ordenes/${ordenId}/estado`, { estado }); await cargar() } catch {}
   }
 
-  const nListas     = ordenes.filter(o => o.estado === 'lista').length
+  const nListas     = ordenes.filter(o => o.estado === 'listo').length
   const categorias  = [...new Set(platos.map(p => p.categoria))].sort()
   const porCategoria = platos.reduce((acc, p) => { if (!acc[p.categoria]) acc[p.categoria] = []; acc[p.categoria].push(p); return acc }, {})
   const totalOrden  = items.reduce((s, i) => s + Number(i.plato.precio) * i.cantidad, 0)
@@ -165,7 +165,7 @@ export default function Mesero() {
           {mesas.filter(m => m.ubicacion === ubicacion).map(m => {
             const orden = ordenes.find(o => o.mesa_id === m.id)
             const color = m.estado === 'ocupada' ? 'var(--coral)' : m.estado === 'reservada' ? 'var(--warning)' : 'var(--success)'
-            const listaParaEntregar = orden?.estado === 'lista'
+            const listaParaEntregar = orden?.estado === 'listo'
             return (
               <button key={m.id} onClick={() => abrirMesa(m)} style={{
                 background: 'var(--white)', border: `3px solid ${listaParaEntregar ? 'var(--success)' : color}`,
@@ -196,8 +196,8 @@ export default function Mesero() {
             : ordenes.map(o => {
                 const minutos = Math.floor((Date.now() - new Date(o.created_at).getTime()) / 60000)
                 return (
-                  <div key={o.id} className="card" style={{ border: o.estado === 'lista' ? '2px solid var(--success)' : undefined }}>
-                    {o.estado === 'lista' && <div style={{ background: 'var(--success)', color: 'white', padding: '.35rem 1rem', fontSize: '.82rem', fontWeight: 700 }}>🔔 Lista para entregar</div>}
+                  <div key={o.id} className="card" style={{ border: o.estado === 'listo' ? '2px solid var(--success)' : undefined }}>
+                    {o.estado === 'listo' && <div style={{ background: 'var(--success)', color: 'white', padding: '.35rem 1rem', fontSize: '.82rem', fontWeight: 700 }}>🔔 Lista para entregar</div>}
                     <div style={{ padding: '.9rem 1rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.5rem' }}>
                         <span style={{ fontWeight: 800 }}>Mesa {o.mesas?.numero}</span>
@@ -209,10 +209,10 @@ export default function Mesero() {
                       <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
                         <span style={{ fontWeight: 700, color: 'var(--orange)' }}>{fmtUsd(o.total)}</span>
                         <span className="text-xs text-muted" style={{ flex: 1 }}>{minutos}min</span>
-                        {o.estado === 'lista' && (
-                          <button className="btn btn-success btn-sm" onClick={() => cambiarEstado(o.id, 'entregada')}>✓ Entregar</button>
+                        {o.estado === 'listo' && (
+                          <button className="btn btn-success btn-sm" onClick={() => cambiarEstado(o.id, 'entregado')}>✓ Entregar</button>
                         )}
-                        {['pendiente', 'en_preparacion'].includes(o.estado) && (
+                        {!['listo', 'entregado', 'pagado', 'cancelada'].includes(o.estado) && (
                           <button className="btn btn-danger btn-sm" onClick={() => confirm('¿Cancelar?') && cambiarEstado(o.id, 'cancelada')}>Cancelar</button>
                         )}
                       </div>

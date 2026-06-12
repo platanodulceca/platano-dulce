@@ -10,7 +10,7 @@ router.get('/active', async (req, res) => {
   const { data, error } = await supabase
     .from('ordenes')
     .select('*, orden_items(*), mesas(numero)')
-    .in('estado', ['pendiente', 'en_preparacion', 'lista'])
+    .in('estado', ['pendiente', 'en_preparacion', 'listo'])
     .order('id', { ascending: true })
   if (error) return res.status(500).json({ error: error.message })
   res.json({ orders: data })
@@ -22,7 +22,7 @@ router.get('/mine', async (req, res) => {
     .from('ordenes')
     .select('*, orden_items(*)')
     .eq('mesero_id', req.user.id)
-    .not('estado', 'in', '("cobrada","cancelada")')
+    .not('estado', 'in', '("pagado","cancelada")')
     .order('id', { ascending: false })
   if (error) return res.status(500).json({ error: error.message })
   res.json({ orders: data })
@@ -33,7 +33,7 @@ router.get('/to-collect', async (req, res) => {
   const { data, error } = await supabase
     .from('ordenes')
     .select('*, orden_items(*), mesas(numero)')
-    .in('estado', ['lista', 'entregada'])
+    .in('estado', ['listo', 'entregado'])
     .order('id', { ascending: true })
   if (error) return res.status(500).json({ error: error.message })
   res.json({ orders: data })
@@ -93,7 +93,7 @@ router.post('/:id/items', async (req, res) => {
   if (orden.mesero_id !== req.user.id && !['admin', 'dueno'].includes(req.user.role)) {
     return res.status(403).json({ error: 'Sin acceso a esta orden' })
   }
-  if (['cobrada', 'cancelada'].includes(orden.estado)) {
+  if (['pagado', 'cancelada'].includes(orden.estado)) {
     return res.status(400).json({ error: 'No se puede modificar una orden cerrada' })
   }
 
@@ -189,13 +189,13 @@ router.put('/:id/deliver', async (req, res) => {
   const { data: orden } = await supabase
     .from('ordenes').select('estado, mesero_id').eq('id', req.params.id).single()
   if (!orden) return res.status(404).json({ error: 'Orden no encontrada' })
-  if (!['lista', 'en_preparacion'].includes(orden.estado)) {
+  if (!['listo', 'en_preparacion'].includes(orden.estado)) {
     return res.status(400).json({ error: 'La orden no está lista para entrega' })
   }
 
   const { data, error } = await supabase
     .from('ordenes')
-    .update({ estado: 'entregada' })
+    .update({ estado: 'entregado' })
     .eq('id', req.params.id)
     .select('*, orden_items(*), mesas(numero)').single()
   if (error) return res.status(500).json({ error: error.message })
@@ -207,7 +207,7 @@ router.put('/:id/cobrar', requireRoles('admin', 'cajero', 'dueno'), async (req, 
   const { data: orden } = await supabase
     .from('ordenes').select('*, orden_items(*)').eq('id', req.params.id).single()
   if (!orden) return res.status(404).json({ error: 'Orden no encontrada' })
-  if (!['lista', 'entregada'].includes(orden.estado)) {
+  if (!['listo', 'entregado'].includes(orden.estado)) {
     return res.status(400).json({ error: 'La orden no está lista para cobrar' })
   }
 
@@ -236,7 +236,7 @@ router.put('/:id/cobrar', requireRoles('admin', 'cajero', 'dueno'), async (req, 
 
   const { data, error } = await supabase
     .from('ordenes')
-    .update({ estado: 'cobrada' })
+    .update({ estado: 'pagado' })
     .eq('id', req.params.id)
     .select('*, orden_items(*), mesas(numero)').single()
   if (error) return res.status(500).json({ error: error.message })
@@ -244,7 +244,7 @@ router.put('/:id/cobrar', requireRoles('admin', 'cajero', 'dueno'), async (req, 
   const { data: otras } = await supabase
     .from('ordenes').select('id')
     .eq('mesa_id', orden.mesa_id)
-    .not('estado', 'in', '("cobrada","cancelada")')
+    .not('estado', 'in', '("pagado","cancelada")')
   if (!otras?.length) {
     await supabase.from('mesas').update({ estado: 'disponible' }).eq('id', orden.mesa_id)
   }
@@ -257,7 +257,7 @@ router.put('/:id/cancel', async (req, res) => {
   const { data: orden } = await supabase
     .from('ordenes').select('estado, mesa_id').eq('id', req.params.id).single()
   if (!orden) return res.status(404).json({ error: 'Orden no encontrada' })
-  if (['cobrada', 'cancelada'].includes(orden.estado)) {
+  if (['pagado', 'cancelada'].includes(orden.estado)) {
     return res.status(400).json({ error: 'No se puede cancelar esta orden' })
   }
 
@@ -266,7 +266,7 @@ router.put('/:id/cancel', async (req, res) => {
   const { data: otras } = await supabase
     .from('ordenes').select('id')
     .eq('mesa_id', orden.mesa_id)
-    .not('estado', 'in', '("cobrada","cancelada","borrador")')
+    .not('estado', 'in', '("pagado","cancelada","borrador")')
     .neq('id', req.params.id)
   if (!otras?.length) {
     await supabase.from('mesas').update({ estado: 'disponible' }).eq('id', orden.mesa_id)
@@ -288,14 +288,14 @@ async function autoActualizarOrden(ordenId) {
   if (!items?.length) return null
 
   const { data: orden } = await supabase.from('ordenes').select('estado').eq('id', ordenId).single()
-  if (!orden || ['cobrada', 'cancelada', 'entregada'].includes(orden.estado)) return orden?.estado
+  if (!orden || ['pagado', 'cancelada', 'entregado'].includes(orden.estado)) return orden?.estado
 
   const todosListos  = items.every(i => i.estado === 'listo')
   const hayPrep      = items.some(i => i.estado === 'en_preparacion')
   const hayListo     = items.some(i => i.estado === 'listo')
 
   let nuevoEstado = orden.estado
-  if (todosListos)         nuevoEstado = 'lista'
+  if (todosListos)         nuevoEstado = 'listo'
   else if (hayPrep || hayListo) nuevoEstado = 'en_preparacion'
   else                     nuevoEstado = 'pendiente'
 

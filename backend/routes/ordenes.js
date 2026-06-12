@@ -17,7 +17,7 @@ router.get('/', async (req, res) => {
   const { data, error } = await supabase
     .from('ordenes')
     .select('*, orden_items(*), mesas(numero, estado)')
-    .not('estado', 'in', '("cobrada","cancelada")')
+    .not('estado', 'in', '("pagado","cancelada")')
     .order('id', { ascending: false })
   if (error) return res.status(500).json({ error: error.message })
   res.json({ ordenes: data })
@@ -28,7 +28,7 @@ router.get('/cobrar', async (req, res) => {
   const { data, error } = await supabase
     .from('ordenes')
     .select('*, orden_items(*), mesas(numero)')
-    .in('estado', ['lista', 'entregada'])
+    .in('estado', ['listo', 'entregado'])
     .order('id')
   if (error) return res.status(500).json({ error: error.message })
   res.json({ ordenes: data })
@@ -40,7 +40,7 @@ router.get('/mias', async (req, res) => {
     .from('ordenes')
     .select('*, orden_items(*), mesas(numero)')
     .eq('mesero_id', req.user.id)
-    .not('estado', 'in', '("cobrada","cancelada")')
+    .not('estado', 'in', '("pagado","cancelada")')
     .order('id', { ascending: false })
   if (error) return res.status(500).json({ error: error.message })
   res.json({ ordenes: data })
@@ -148,7 +148,7 @@ router.put('/:id/cobrar', requireRoles('admin', 'cajero', 'dueno'), async (req, 
     .select('*, orden_items(*)')
     .eq('id', req.params.id).single()
   if (!orden) return res.status(404).json({ error: 'Orden no encontrada' })
-  if (!['lista', 'entregada'].includes(orden.estado)) {
+  if (!['listo', 'entregado'].includes(orden.estado)) {
     return res.status(400).json({ error: 'La orden no está lista para cobrar' })
   }
 
@@ -176,7 +176,7 @@ router.put('/:id/cobrar', requireRoles('admin', 'cajero', 'dueno'), async (req, 
 
   const { data, error } = await supabase
     .from('ordenes')
-    .update({ estado: 'cobrada' })
+    .update({ estado: 'pagado' })
     .eq('id', req.params.id)
     .select('*, orden_items(*), mesas(numero)').single()
   if (error) return res.status(500).json({ error: error.message })
@@ -186,7 +186,7 @@ router.put('/:id/cobrar', requireRoles('admin', 'cajero', 'dueno'), async (req, 
     .from('ordenes')
     .select('id')
     .eq('mesa_id', orden.mesa_id)
-    .not('estado', 'in', '("cobrada","cancelada")')
+    .not('estado', 'in', '("pagado","cancelada")')
   if (!otras?.length) {
     await supabase.from('mesas').update({ estado: 'disponible' }).eq('id', orden.mesa_id)
   }
